@@ -31,6 +31,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -43,6 +44,16 @@
     },
     "iOS": {
       "minimumSystemVersion": "14.0"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/guessleej/xchat-app/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUxMzMzNUQ0OEVBOUZFRDgKUldUWS9xbU8xRFV6NFp3THRqUDh4bnVkM2Q0akxmQXFtU0s3R0ZscWlSbnk5bEt2WjZHNWR5RlIK",
+      "dialog": false
     }
   }
 }

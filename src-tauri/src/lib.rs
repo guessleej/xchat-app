@@ -19,10 +19,13 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init());
 
     #[cfg(desktop)]
-    let builder = builder.setup(|app| {
-        setup_tray(app.handle())?;
-        Ok(())
-    });
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            setup_tray(app.handle())?;
+            Ok(())
+        });
 
     builder
         .invoke_handler(tauri::generate_handler![get_app_info])

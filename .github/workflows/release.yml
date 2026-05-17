@@ -1,0 +1,85 @@
+name: Release Tauri App
+
+# 推 tag (v0.x.x) 時自動 build + sign + publish GitHub Release
+# Release 中會有 latest.json + .app.tar.gz / .dmg / .msi / .deb 等檔案
+# Tauri updater 會自動讀 latest.json 觸發 in-app 更新
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: # 也允許手動觸發
+
+permissions:
+  contents: write # 建 release + 上傳 asset 需要
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            label: macOS-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            label: macOS-x64
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            label: Linux-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: Windows-x64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Linux deps
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build & sign Tauri bundle
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "xChat ${{ github.ref_name }}"
+          releaseBody: |
+            ## xChat ${{ github.ref_name }}
+
+            Tauri 2.x 跨平台 desktop + iOS。
+            自動更新 endpoint：`latest.json`
+          releaseDraft: false
+          prerelease: false
+          args: --target ${{ matrix.target }}
