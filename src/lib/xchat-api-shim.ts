@@ -150,8 +150,37 @@ async function loadRealAPI() {
     onUpdateProgress: (cb: (n: number) => void) =>
       wrapListener<{ progress: number }>("update-progress", (p) => cb(p.progress)),
     onUpdateReady: (cb: () => void) => wrapListener<null>("update-ready", () => cb()),
-    downloadUpdate: async () => {},
-    installUpdate: async () => {},
+    downloadUpdate: async () => {
+      try {
+        const { check } = await import("@tauri-apps/plugin-updater");
+        const update = await check();
+        if (!update) return;
+        let downloaded = 0;
+        let total = 0;
+        await update.downloadAndInstall((e: any) => {
+          if (e.event === "Started") {
+            total = e.data?.contentLength ?? 0;
+            emit("update-available", { version: update.version });
+          } else if (e.event === "Progress") {
+            downloaded += e.data?.chunkLength ?? 0;
+            const pct = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+            emit("update-progress", { progress: pct });
+          } else if (e.event === "Finished") {
+            emit("update-ready", null);
+          }
+        });
+      } catch (e) {
+        console.error("[updater] downloadUpdate failed:", e);
+      }
+    },
+    installUpdate: async () => {
+      try {
+        const { relaunch } = await import("@tauri-apps/plugin-process");
+        await relaunch();
+      } catch (e) {
+        console.error("[updater] installUpdate (relaunch) failed:", e);
+      }
+    },
   };
 
   // 保留 fallback 的 platform 字串，把其他 method 覆寫成真實版
