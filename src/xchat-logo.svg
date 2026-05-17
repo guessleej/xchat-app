@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="redG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8192C"/>
+      <stop offset="100%" stop-color="#8B0010"/>
+    </linearGradient>
+    <linearGradient id="darkG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="120" height="120" rx="24" fill="url(#darkG)"/>
+
+  <!-- Outer ring accent -->
+  <rect width="120" height="120" rx="24" fill="none" stroke="#BE1823" stroke-width="1.5" opacity="0.4"/>
+
+  <!-- X shape: two crossing bars with rounded caps -->
+  <g transform="translate(60,56)" filter="url(#glow)">
+    <!-- bar 1: top-left to bottom-right -->
+    <rect x="-36" y="-11" width="72" height="22" rx="11" fill="url(#redG)" transform="rotate(45)"/>
+    <!-- bar 2: top-right to bottom-left -->
+    <rect x="-36" y="-11" width="72" height="22" rx="11" fill="url(#redG)" transform="rotate(-45)"/>
+    <!-- center overlap highlight -->
+    <circle cx="0" cy="0" r="11" fill="#E8192C" opacity="0.9"/>
+    <circle cx="0" cy="0" r="5" fill="#FF4455" opacity="0.7"/>
+  </g>
+
+  <!-- Chat bubble indicator bottom-right -->
+  <g transform="translate(88,88)">
+    <rect x="-14" y="-10" width="28" height="20" rx="6" fill="#BE1823"/>
+    <polygon points="-4,10 4,10 0,16" fill="#BE1823"/>
+    <!-- dots inside bubble -->
+    <circle cx="-7" cy="0" r="2.5" fill="#fff" opacity="0.9"/>
+    <circle cx="0" cy="0" r="2.5" fill="#fff" opacity="0.9"/>
+    <circle cx="7" cy="0" r="2.5" fill="#fff" opacity="0.9"/>
+  </g>
+</svg>

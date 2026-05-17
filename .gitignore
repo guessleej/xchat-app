@@ -1,0 +1,21 @@
+node_modules
+dist
+dist-ssr
+*.log
+.DS_Store
+
+# Tauri
+src-tauri/target
+src-tauri/gen
+src-tauri/Cargo.lock
+*.app
+*.dmg
+
+# Tauri updater private key — NEVER commit
+src-tauri/.tauri-signing-key
+src-tauri/.tauri-signing-key.pub
+
+# Local env (contains internal hosts)
+.env
+.env.local
+.env.production
