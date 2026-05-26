@@ -49,13 +49,42 @@ async function loadRealAPI() {
     { getCurrentWindow, ProgressBarStatus },
     { listen, emit },
     notif,
+    httpMod,
   ] = await Promise.all([
     import("@tauri-apps/plugin-os"),
     import("@tauri-apps/plugin-shell"),
     import("@tauri-apps/api/window"),
     import("@tauri-apps/api/event"),
     import("@tauri-apps/plugin-notification"),
+    import("@tauri-apps/plugin-http"),
   ]);
+
+  // ── 安裝 fetch 攔截器 ──────────────────────────────────────
+  // build 版沒有 Vite proxy，renderer 的 http://... 又被 macOS WKWebView ATS 擋掉
+  // 解法：把跨網域 HTTP 請求轉走 Tauri plugin-http（從 Rust 端用 reqwest 發，無 ATS 限制）
+  const origFetch = window.fetch.bind(window);
+  const apiBase = import.meta.env.VITE_API_URL as string | undefined;
+  const apiTarget = (import.meta.env.VITE_API_TARGET as string | undefined) ?? "";
+  window.fetch = async (input: any, init?: any) => {
+    let url: string = typeof input === "string" ? input : input.url ?? input.toString();
+    // 在 prod build 把 "/api/..." 改寫成完整後端 URL
+    if (url.startsWith("/api/") && apiTarget) {
+      url = apiTarget.replace(/\/$/, "") + url;
+      if (typeof input === "string") input = url;
+      else input = new Request(url, input);
+    }
+    // 若是 plain HTTP 跨網域 → 改用 Tauri plugin-http (繞 ATS / CORS / SSE 都支援)
+    if (/^http:\/\/(?!localhost|127\.0\.0\.1)/.test(url)) {
+      try {
+        return await httpMod.fetch(input as any, init);
+      } catch (e) {
+        console.warn("[shim] plugin-http fetch failed, fall back to native:", e);
+      }
+    }
+    return origFetch(input, init);
+  };
+  void apiBase; // 保留變數避免 unused
+  console.info("[xchat-api-shim] fetch interceptor installed");
 
   // 推斷 platform
   try {
