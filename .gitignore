@@ -19,3 +19,4 @@ src-tauri/.tauri-signing-key.pub
 .env
 .env.local
 .env.production
+.env.production.local

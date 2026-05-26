@@ -8,6 +8,9 @@ import { useChatStore } from "./store/chatStore";
 import { useUIStore } from "./store/uiStore";
 import { db } from "./store/db";
 import { MarkdownRenderer } from "./components/MarkdownRenderer";
+import { useProviderStore } from "./store/providerStore";
+import { SEARCH_DEPTHS, SEARCH_MODES, SEARCH_RECENCIES, useSearchStore } from "./store/searchStore";
+import { SettingsModal } from "./components/SettingsModal";
 import XChatLogo from "./xchat-logo.svg";
 import "./app.css";
 
@@ -45,6 +48,21 @@ const TOOLS = [
   { id: "file",     icon: "",  label: "檔案上傳",    shortcut: "" },
 ] as const;
 type ToolId = (typeof TOOLS)[number]["id"] | "ppt" | "website" | "document" | "research" | "table";
+
+// ─── JWT 本地解碼（不驗簽，只取 payload 供顯示）──────────────────────────────────
+export function decodeJWT(token: string): { sub?: string; email?: string; username?: string; plan?: string } {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return {};
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(b64).split("").map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join("")
+    );
+    return JSON.parse(json);
+  } catch {
+    return {};
+  }
+}
 
 // ─── 登入 / 註冊頁 ─────────────────────────────────────────────────────────────
 const INPUT_S: React.CSSProperties = {
@@ -139,10 +157,34 @@ function UpdateBanner() {
 // ─── 主應用 ───────────────────────────────────────────────────────────────────
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem("token"));
+  const [profile, setProfile] = useState<{ username?: string; email?: string; avatar_url?: string }>(() => {
+    // 優先：localStorage 快取（含 avatar）
+    try {
+      const cached = localStorage.getItem("xchat-profile-cache");
+      if (cached) {
+        const p = JSON.parse(cached);
+        if (p.username || p.email) return p;
+      }
+    } catch {}
+    // 次選：直接解 JWT token（離線也能顯示 username/email，不需後端）
+    const jwt = decodeJWT(localStorage.getItem("token") || "");
+    if (jwt.username || jwt.email) {
+      const av = localStorage.getItem("xchat-avatar-cache") || undefined;
+      return { username: jwt.username, email: jwt.email, avatar_url: av };
+    }
+    return {};
+  });
   const [activeTool, setActiveTool] = useState<ToolId>("chat");
   const [input, setInput]           = useState("");
   const [thinkingMode, setThinkingMode] = useState(false);
   const [imageAttachments, setImageAttachments] = useState<string[]>([]);
+  // 檔案附件（PDF/DOCX/etc）— Claude 風格：先 chip 預覽，按送出才一起上傳
+  type FileAttachment = { name: string; size: number; file: File; uploading?: boolean; error?: string };
+  const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
+  // 保留 activeProvider 供其它地方（例如 streamChat header）使用
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _activeProvider = useProviderStore((s) => s.active());
   const [docGroupOpen, setDocGroupOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(() => localStorage.getItem("xchat-history-open") !== "0");
   // 動態 Agents 卡片狀態
@@ -150,6 +192,7 @@ export default function App() {
   const [dynPlan, setDynPlan] = useState<{title:string;summary:string;dimensions?:number}|null>(null);
   const [dynAgents, setDynAgents] = useState<DynAgent[]>([]);
   const [dynSynthesize, setDynSynthesize] = useState<{phase:"idle"|"thinking"|"writing"; tokens:number}>({phase:"idle",tokens:0});
+  const [dynCollapsed, setDynCollapsed] = useState(false);
   type AgentRole = "planner" | "researcher" | "writer" | "reviewer" | "executor";
   const [selectedAgents, setSelectedAgents] = useState<AgentRole[]>(
     () => {
@@ -180,6 +223,9 @@ export default function App() {
   } = useChatStore();
 
   const { theme, preview, isDragging, showScrollBtn, toggleTheme, setPreview, setIsDragging, setShowScrollBtn, updateInfo, setUpdateInfo, lastResult, setLastResult, activeTask, setActiveTask, webAccess, setWebAccess, heartbeat, bumpHeartbeat } = useUIStore();
+  const { mode: searchMode, depth: searchDepth, recency: searchRecency, sourcesText: searchSourcesText,
+    setMode: setSearchMode, setDepth: setSearchDepth, setRecency: setSearchRecency,
+    setSourcesText: setSearchSourcesText, toSettings: toSearchSettings } = useSearchStore();
 
   const abortRef      = useRef<AbortController | null>(null);
   const pollStopRef   = useRef<(() => void) | null>(null);
@@ -234,8 +280,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isLoggedIn) loadHistory();
+    if (isLoggedIn) {
+      loadHistory();
+      refreshProfile();
+    }
   }, [isLoggedIn]);
+
+  // 由 SettingsModal 觸發的 profile 更新事件
+  useEffect(() => {
+    const refresh = () => refreshProfile();
+    window.addEventListener("xchat:profile-updated", refresh);
+    return () => window.removeEventListener("xchat:profile-updated", refresh);
+  }, []);
+
+  function refreshProfile() {
+    auth.me()
+      .then((d) => {
+        const next = { username: d.username, email: d.email, avatar_url: d.avatar_url };
+        setProfile(next);
+        // 快取到 localStorage 給下次啟動瞬間用
+        try { localStorage.setItem("xchat-profile-cache", JSON.stringify(next)); } catch {}
+        if (d.avatar_url) localStorage.setItem("xchat-avatar-cache", d.avatar_url);
+        else localStorage.removeItem("xchat-avatar-cache");
+      })
+      .catch((e) => console.warn("auth.me:", e));
+  }
 
   // Textarea 自動高度（對齊網頁版）
   useEffect(() => {
@@ -278,12 +347,22 @@ export default function App() {
     window.xchatAPI?.taskbarProgress?.(0);
   };
 
-  const handleNewConversation = () => {
-    detachUI();
-    newConversation();
+  const resetTransientUI = () => {
     setPreview(null);
     setLastResult(null);
     setImageAttachments([]);
+    setFileAttachments([]);
+    setDynPlan(null);
+    setDynAgents([]);
+    setDynSynthesize({ phase: "idle", tokens: 0 });
+    setDynCollapsed(false);
+    setTaskStatus("");
+  };
+
+  const handleNewConversation = () => {
+    detachUI();
+    newConversation();
+    resetTransientUI();
     setActiveTool("chat");
   };
 
@@ -291,9 +370,7 @@ export default function App() {
     detachUI();
     setActiveTool(toolId);
     newConversation();
-    setPreview(null);
-    setLastResult(null);
-    setImageAttachments([]);
+    resetTransientUI();
   };
 
   // ── 檔案上傳 ────────────────────────────────────────────────────────────────
@@ -320,14 +397,16 @@ export default function App() {
   };
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault(); setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    if (file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setImageAttachments((p) => [...p, ev.target?.result as string]);
-      reader.readAsDataURL(file);
-    } else {
-      await uploadFile(file);
+    const files = Array.from(e.dataTransfer.files);
+    for (const file of files) {
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (ev) => setImageAttachments((p) => [...p, ev.target?.result as string]);
+        reader.readAsDataURL(file);
+      } else {
+        // PDF/DOCX/etc → 加 chip 預覽，按送出再上傳
+        setFileAttachments((p) => [...p, { name: file.name, size: file.size, file }]);
+      }
     }
   };
 
@@ -348,7 +427,7 @@ export default function App() {
   // ── 發送（50ms batching + SSE）──────────────────────────────────────────────
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text && imageAttachments.length === 0) return;
+    if (!text && imageAttachments.length === 0 && fileAttachments.length === 0) return;
     if (activeTool === "agent" && selectedAgents.length === 0) {
       alert("請至少選擇一個 Agent 角色。");
       return;
@@ -369,9 +448,27 @@ export default function App() {
     resetTextareaHeight();
     setLoading(true);
     const imgs = [...imageAttachments];
+    const pendingFiles = [...fileAttachments];
     setImageAttachments([]);
+    setFileAttachments([]);
 
-    const userMsgId = addUserMessage(text, imgs.length > 0 ? imgs : undefined);
+    // 並行上傳所有檔案附件（不再 1 個 1 個等）
+    let fileContextText = "";
+    if (pendingFiles.length > 0) {
+      const uploads = await Promise.allSettled(pendingFiles.map((fa) => files.upload(fa.file)));
+      uploads.forEach((r, i) => {
+        const fa = pendingFiles[i];
+        if (r.status === "fulfilled") {
+          const d = r.value.data;
+          fileContextText += `\n\n[檔案] ${d.file_name} 內容：\n${d.extracted_text}`;
+        } else {
+          fileContextText += `\n\n[檔案] ${fa.name}（上傳失敗：${(r.reason as Error).message}）`;
+        }
+      });
+    }
+    const finalText = text + fileContextText;
+
+    const userMsgId = addUserMessage(text || pendingFiles.map(f => `📎 ${f.name}`).join(", "), imgs.length > 0 ? imgs : undefined);
     pendingUserMsgRef.current = { convId, messageId: userMsgId };
     const aiId = addAssistantMessage();
     abortRef.current = new AbortController();
@@ -417,6 +514,7 @@ export default function App() {
       }
       setActiveTask(null);
       pendingUserMsgRef.current = null;
+      setTaskStatus("");  // 清掉「整理結果中…」等殘留狀態，避免完成後還在轉圈
       window.xchatAPI?.taskbarProgress?.(0);
     };
 
@@ -455,7 +553,8 @@ export default function App() {
     // 深度研究
     if (activeTool === "research") {
       setTaskStatus("啟動深度研究...");
-      streamResearch(text, "standard", (ev) => {
+      const search = toSearchSettings(true);
+      streamResearch(text, search.depth, (ev) => {
         const e = ev as Record<string, string>;
         if (e.type === "searching") setTaskStatus(`搜尋：${e.query}（第 ${e.round} 輪）`);
         else if (e.type === "round_summary") bufAppend(`\n\n**第${e.round}輪摘要**\n${e.summary}`);
@@ -470,6 +569,7 @@ export default function App() {
       setTaskStatus("啟動 Agents...");
       setDynPlan(null);
       setDynAgents([]);
+      setDynCollapsed(false);
       streamDynamicAgent(text, (ev) => {
         const e = ev as Record<string, unknown>;
         const t = e.type as string;
@@ -518,18 +618,28 @@ export default function App() {
         else if (t === "done") {
           done();
           setTaskStatus("集群任務完成");
+          // 集群完成自動收合 agent 卡片，讓出版面給最終報告
+          setDynCollapsed(true);
         }
         else if (t === "error") {
           const msg = String(e.message || "");
           if (msg.includes("401")) {
-            bufAppend(`\n\n登入逾期，請重新登入後再試。`);
-            localStorage.removeItem("token");
-            localStorage.removeItem("refresh_token");
-            setTimeout(() => window.dispatchEvent(new Event("xchat:logout")), 500);
+            // 先嘗試用 refresh_token 續期；成功就請使用者再送一次，失敗才登出
+            auth.tryRefresh().then((ok) => {
+              if (ok) {
+                bufAppend(`\n\n（登入狀態已自動更新，請再送出一次）`);
+              } else {
+                bufAppend(`\n\n登入已過期，請重新登入。`);
+                localStorage.removeItem("token");
+                localStorage.removeItem("refresh_token");
+                window.dispatchEvent(new Event("xchat:logout"));
+              }
+              done();
+            });
           } else {
             bufAppend(`\n\n錯誤：${msg}`);
+            done();
           }
-          done();
         }
       }, abortRef.current.signal, webAccess);
       return;
@@ -620,9 +730,10 @@ export default function App() {
     }
 
     // 主對話（深度思考 + 50ms batch SSE）
+    // 使用 finalText（含附件解析文字）而非原始 text
     const payload = thinkingMode
-      ? `請在 <think>...</think> 標籤內先進行推理，再給出答案。\n\n${text}`
-      : text;
+      ? `請在 <think>...</think> 標籤內先進行推理，再給出答案。\n\n${finalText}`
+      : finalText;
 
     let buf = ""; let rafId: ReturnType<typeof setTimeout> | null = null;
     const flush = () => { if (buf) { bufAppend(buf); buf = ""; } rafId = null; };
@@ -663,14 +774,22 @@ export default function App() {
         flush();
         const msg = e.message || "";
         if (msg.includes("401")) {
-          bufAppend(`登入逾期，請重新登入後再試。`);
-          localStorage.removeItem("token");
-          localStorage.removeItem("refresh_token");
-          setTimeout(() => window.dispatchEvent(new Event("xchat:logout")), 500);
+          // 先嘗試用 refresh_token 續期；成功就請使用者再送一次，失敗才登出
+          auth.tryRefresh().then((ok) => {
+            if (ok) {
+              bufAppend(`（登入狀態已自動更新，請再送出一次）`);
+            } else {
+              bufAppend(`登入已過期，請重新登入。`);
+              localStorage.removeItem("token");
+              localStorage.removeItem("refresh_token");
+              window.dispatchEvent(new Event("xchat:logout"));
+            }
+            done();
+          });
         } else {
           bufAppend(`錯誤：${msg}`);
+          done();
         }
-        done();
       } else if (e.type === "done") {
         flush();
         done();
@@ -679,7 +798,7 @@ export default function App() {
     };
 
     streamChat(convId, payload, webAccess ? ["web_search"] : [], onEvent, abortRef.current.signal);
-  }, [input, loading, activeTool, convId, thinkingMode, imageAttachments, selectedAgents, webAccess]);
+  }, [input, loading, activeTool, convId, thinkingMode, imageAttachments, selectedAgents, webAccess, toSearchSettings]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey
@@ -730,9 +849,13 @@ export default function App() {
           </div>
         )}
       </div>
-      {msg.role === "user" && <div className="msg__avatar msg__avatar--user">U</div>}
+      {msg.role === "user" && (
+        profile.avatar_url
+          ? <img src={profile.avatar_url} alt="" className="msg__avatar msg__avatar--user msg__avatar--img" />
+          : <div className="msg__avatar msg__avatar--user">{(profile.username || "U").slice(0, 1).toUpperCase()}</div>
+      )}
     </div>
-  ), []);
+  ), [profile.username, profile.avatar_url]);
 
   if (!isLoggedIn) return <LoginPage onLogin={() => setIsLoggedIn(true)} />;
 
@@ -742,6 +865,8 @@ export default function App() {
       <div className="titlebar-drag-region" />
 
       <UpdateBanner />
+
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
 
       {isDragging && (
         <div className="drag-overlay">
@@ -877,7 +1002,7 @@ export default function App() {
                   {theme === "dark" ? "切換淺色模式" : "切換深色模式"}
                 </div>
                 <div className="sidebar__user-menu-divider" />
-                <div className="sidebar__user-menu-item" onClick={() => setUserMenuOpen(false)}>設置</div>
+                <div className="sidebar__user-menu-item" onClick={() => { setUserMenuOpen(false); setShowSettings(true); }}>設置</div>
                 <div className="sidebar__user-menu-item"
                   onClick={() => {
                     setUserMenuOpen(false);
@@ -885,14 +1010,23 @@ export default function App() {
                   }}>關於 xChat</div>
                 <div className="sidebar__user-menu-divider" />
                 <div className="sidebar__user-menu-item sidebar__user-menu-item--danger"
-                  onClick={() => { auth.logout(); setIsLoggedIn(false); setUserMenuOpen(false); }}>
+                  onClick={() => {
+                    auth.logout();
+                    localStorage.removeItem("xchat-profile-cache");
+                    localStorage.removeItem("xchat-avatar-cache");
+                    setProfile({});
+                    setIsLoggedIn(false);
+                    setUserMenuOpen(false);
+                  }}>
                   登出
                 </div>
               </div>
             )}
             <div className="sidebar__user" onClick={() => setUserMenuOpen((v) => !v)}>
-              <div className="sidebar__avatar">U</div>
-              <span>使用者</span>
+              {profile.avatar_url
+                ? <img src={profile.avatar_url} alt="" className="sidebar__avatar sidebar__avatar--img" />
+                : <div className="sidebar__avatar">{(profile.username || "U").slice(0, 1).toUpperCase()}</div>}
+              <span>{profile.username || "使用者"}</span>
               <span style={{ marginLeft: "auto", fontSize: 10, opacity: 0.5 }}>▲</span>
             </div>
           </div>
@@ -962,13 +1096,30 @@ export default function App() {
 
           {taskStatus && <div className="task-status">{taskStatus}</div>}
 
-          {imageAttachments.length > 0 && (
+          {(imageAttachments.length > 0 || fileAttachments.length > 0) && (
             <div className="attachments-bar">
               {imageAttachments.map((src, i) => (
-                <div key={i} className="attachments-bar__item">
+                <div key={`img-${i}`} className="attachments-bar__item">
                   <img src={src} alt="" className="attachments-bar__img" />
                   <button className="attachments-bar__remove"
                     onClick={() => setImageAttachments((p) => p.filter((_, j) => j !== i))}>✕</button>
+                </div>
+              ))}
+              {fileAttachments.map((fa, i) => (
+                <div key={`file-${i}`} className="attachments-bar__item attachments-bar__item--file" title={fa.name}>
+                  <div className="attachments-bar__file-icon">
+                    {fa.name.toLowerCase().endsWith(".pdf") ? "PDF" :
+                     fa.name.toLowerCase().match(/\.(docx?|doc)$/) ? "DOC" :
+                     fa.name.toLowerCase().match(/\.(xlsx?|csv)$/) ? "XLS" :
+                     fa.name.toLowerCase().endsWith(".md") ? "MD" :
+                     fa.name.toLowerCase().endsWith(".txt") ? "TXT" : "FILE"}
+                  </div>
+                  <div className="attachments-bar__file-meta">
+                    <div className="attachments-bar__file-name">{fa.name}</div>
+                    <div className="attachments-bar__file-size">{(fa.size / 1024).toFixed(0)} KB</div>
+                  </div>
+                  <button className="attachments-bar__remove"
+                    onClick={() => setFileAttachments((p) => p.filter((_, j) => j !== i))}>✕</button>
                 </div>
               ))}
             </div>
@@ -998,22 +1149,36 @@ export default function App() {
             </div>
           )}
 
-          {/* 動態 Agents 卡片區 */}
+          {/* 動態 Agents 卡片區（完成後可收合，把版面讓給整合報告）*/}
           {activeTool === "agent" && dynAgents.length > 0 && (
-            <div className="dyn-agents">
+            <div className={`dyn-agents ${dynCollapsed ? "dyn-agents--collapsed" : ""}`}>
               {dynPlan && (
-                <div className="dyn-plan-header">
-                  <div className="dyn-plan-title">{dynPlan.title}</div>
-                  <div className="dyn-plan-summary">{dynPlan.summary}{dynPlan.dimensions ? `（${dynPlan.dimensions} 個維度）` : ""}</div>
+                <div
+                  className="dyn-plan-header dyn-plan-header--clickable"
+                  onClick={() => setDynCollapsed((v) => !v)}
+                  title={dynCollapsed ? "點擊展開 agents 過程" : "點擊收合"}
+                >
+                  <div className="dyn-plan-title">
+                    <span className="dyn-collapse-arrow">{dynCollapsed ? "▸" : "▾"}</span>
+                    {dynPlan.title}
+                    {dynCollapsed && (
+                      <span className="dyn-plan-badge">
+                        {dynAgents.filter((a) => a.status === "done").length}/{dynAgents.length} agents 完成
+                      </span>
+                    )}
+                  </div>
+                  {!dynCollapsed && (
+                    <div className="dyn-plan-summary">{dynPlan.summary}{dynPlan.dimensions ? `（${dynPlan.dimensions} 個維度）` : ""}</div>
+                  )}
                 </div>
               )}
-              {dynSynthesize.phase !== "idle" && (
+              {!dynCollapsed && dynSynthesize.phase !== "idle" && (
                 <div className="dyn-synthesize-bar">
                   <span className="dyn-thinking-dots"><span /><span /><span /></span>
                   <span>{dynSynthesize.phase === "thinking" ? `Synthesizer 思考中… (reasoning ${dynSynthesize.tokens} tokens)` : "Synthesizer 撰寫整合報告中…"}</span>
                 </div>
               )}
-              <div className="dyn-agent-list">
+              {!dynCollapsed && (<div className="dyn-agent-list">
                 {dynAgents.map(a => (
                   <div key={a.id} className={`dyn-agent-card dyn-${a.status}`}>
                     <div className="dyn-agent-head">
@@ -1040,7 +1205,7 @@ export default function App() {
                     </div>
                   </div>
                 ))}
-              </div>
+              </div>)}
             </div>
           )}
 
@@ -1074,36 +1239,69 @@ export default function App() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown} onPaste={handlePaste}
                 placeholder={getPlaceholder(activeTool)} rows={1} disabled={loading} />
-              <div className="input-box__actions">
-                {activeTool === "chat" && (
-                  <button className={`input-box__btn input-box__btn--think ${thinkingMode ? "active" : ""}`}
-                    onClick={() => setThinkingMode((v) => !v)} title="深度思考模式">深思</button>
-                )}
-                <button
-                  className={`input-box__btn input-box__btn--think ${webAccess ? "active" : ""}`}
-                  onClick={() => setWebAccess(!webAccess)}
-                  title={webAccess ? "已啟用網路查詢，點擊關閉" : "未啟用網路，點擊開啟"}
-                >上網</button>
-                <button className="input-box__btn input-box__btn--attach"
-                  onClick={() => fileInputRef.current?.click()}>附件</button>
-                <input ref={fileInputRef} type="file" hidden
-                  accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.jpg,.png"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f); }} />
-                {loading
-                  ? <button className="input-box__btn input-box__btn--stop"
-                      onClick={() => {
-                        try { abortRef.current?.abort(); } catch {}
-                        try { if (pollStopRef.current) { pollStopRef.current(); pollStopRef.current = null; } } catch {}
-                        abortRef.current = null;
-                        setActiveTask(null);
-                        setLoading(false);
-                        setTaskStatus("已停止");
-                        pendingUserMsgRef.current = null;
-                        window.xchatAPI?.taskbarProgress?.(0);
-                      }}>■ 停止</button>
-                  : <button className="input-box__btn input-box__btn--send"
-                      onClick={send} disabled={!input.trim() && imageAttachments.length === 0}>↑</button>
-                }
+
+              {webAccess && (
+                <div className="input-box__search-settings">
+                  <span className="input-box__search-label">搜尋設定</span>
+                  <select className="input-box__select" value={searchMode} onChange={(e) => setSearchMode(e.target.value as typeof searchMode)} title="搜尋策略">
+                    {SEARCH_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                  <select className="input-box__select" value={searchDepth} onChange={(e) => setSearchDepth(e.target.value as typeof searchDepth)} title="搜尋深度">
+                    {SEARCH_DEPTHS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                  </select>
+                  <select className="input-box__select" value={searchRecency} onChange={(e) => setSearchRecency(e.target.value as typeof searchRecency)} title="時間範圍">
+                    {SEARCH_RECENCIES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                  </select>
+                  <input className="input-box__sources-input" value={searchSourcesText} onChange={(e) => setSearchSourcesText(e.target.value)} placeholder="site: 可逗號分隔" title="限定來源" />
+                </div>
+              )}
+
+              <div className="input-box__toolbar">
+                <div className="input-box__toolbar-group">
+                  {activeTool === "chat" && (
+                    <button className={`input-box__btn input-box__btn--think ${thinkingMode ? "active" : ""}`}
+                      onClick={() => setThinkingMode((v) => !v)} title="深度思考模式">深思</button>
+                  )}
+                  <button
+                    className={`input-box__btn input-box__btn--think ${webAccess ? "active" : ""}`}
+                    onClick={() => setWebAccess(!webAccess)}
+                    title={webAccess ? "已啟用網路查詢，點擊關閉" : "未啟用網路，點擊開啟"}
+                  >上網</button>
+                </div>
+                <div className="input-box__toolbar-group">
+                  <button className="input-box__btn input-box__btn--attach"
+                    onClick={() => fileInputRef.current?.click()}>附件</button>
+                  <input ref={fileInputRef} type="file" hidden multiple
+                    accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.jpg,.png"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      for (const f of files) {
+                        if (f.type.startsWith("image/")) {
+                          const reader = new FileReader();
+                          reader.onload = (ev) => setImageAttachments((p) => [...p, ev.target?.result as string]);
+                          reader.readAsDataURL(f);
+                        } else {
+                          setFileAttachments((p) => [...p, { name: f.name, size: f.size, file: f }]);
+                        }
+                      }
+                      e.target.value = "";
+                    }} />
+                  {loading
+                    ? <button className="input-box__btn input-box__btn--stop"
+                        onClick={() => {
+                          try { abortRef.current?.abort(); } catch {}
+                          try { if (pollStopRef.current) { pollStopRef.current(); pollStopRef.current = null; } } catch {}
+                          abortRef.current = null;
+                          setActiveTask(null);
+                          setLoading(false);
+                          setTaskStatus("已停止");
+                          pendingUserMsgRef.current = null;
+                          window.xchatAPI?.taskbarProgress?.(0);
+                        }}>■ 停止</button>
+                    : <button className="input-box__btn input-box__btn--send"
+                        onClick={send} disabled={!input.trim() && imageAttachments.length === 0}>↑</button>
+                  }
+                </div>
               </div>
             </div>
             <div className="input-footer">

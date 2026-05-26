@@ -91,9 +91,23 @@ export const auth = {
     req("/auth/register", {
       method: "POST", body: JSON.stringify({ email, password, username })
     }),
+  me: async () => {
+    const r = await req<{ success: boolean; data: { id: string; email: string; username: string; plan: string; avatar_url?: string } }>("/auth/me");
+    return r.data;
+  },
+  updateProfile: async (patch: { username?: string; avatar_url?: string }) => {
+    const r = await req<{ success: boolean; data: { id: string; email: string; username: string; avatar_url?: string } }>("/auth/me", {
+      method: "PATCH", body: JSON.stringify(patch),
+    });
+    return r.data;
+  },
   logout: () => {
     localStorage.removeItem("token");
     localStorage.removeItem("refresh_token");
+  },
+  // 嘗試用 refresh_token 續期；成功回 true（新 access token 已寫入 localStorage），失敗回 false
+  tryRefresh: async (): Promise<boolean> => {
+    try { await doRefresh(); return true; } catch { return false; }
   },
 };
 
@@ -108,13 +122,27 @@ export function streamChat(
   onEvent: SSECallback,
   signal?: AbortSignal
 ): void {
-  getValidToken().then(tok => {
+  getValidToken().then(async tok => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${tok}`,
+    };
+    // Provider override：從 Zustand store 動態取（key 來自 Keychain hydrate）
+    try {
+      // 動態 import 避免 api 模組與 store 形成 hard cycle
+      const { useProviderStore } = await import("../store/providerStore");
+      const p = useProviderStore.getState().active();
+      if (p && p.id !== "spark-mistral") {
+        headers["X-LLM-Base-URL"] = p.baseUrl;
+        headers["X-LLM-API-Key"] = p.apiKey;
+        headers["X-LLM-Model"] = p.model;
+        headers["X-LLM-Kind"] = p.kind;
+      }
+    } catch {}
+
     fetch(`${BASE}/chat/conversations/${convId}/messages`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${tok}`,
-      },
+      headers,
       body: JSON.stringify({
         conversation_id: convId,
         messages: [{ role: "user", content: userMessage }],
