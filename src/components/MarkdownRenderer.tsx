@@ -53,6 +53,95 @@ function MermaidBlock({ code }: { code: string }) {
   return <div className="mermaid-container" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
+// ─── 圖表（甜甜圈 / 長條 / 折線，免依賴、SVG 自繪）──────────────────────────────
+const CHART_COLORS = ["#4f8cff","#34c759","#ff9f0a","#ff375f","#bf5af2","#5ac8fa","#ffd60a","#30d158","#ff6482","#64d2ff","#a78bfa","#ffb340","#8e8e93"];
+
+function ChartBlock({ code }: { code: string }) {
+  let spec: { type?: string; title?: string; data?: Array<{ label: string; value: number }> };
+  try { spec = JSON.parse(code); } catch { return <CodeBlock lang="chart" code={code} />; }
+  const type = (spec.type || "bar").toLowerCase();
+  const data = (spec.data || []).filter((d) => d && typeof d.value === "number" && isFinite(d.value));
+  if (!data.length) return <div style={{ color: "var(--text3)", padding: 12 }}>（圖表無資料）</div>;
+  const fmt = (n: number) => n.toLocaleString();
+  const wrap: React.CSSProperties = { background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, margin: "10px 0" };
+  const titleEl = spec.title ? <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: "var(--text2)" }}>{spec.title}</div> : null;
+
+  if (type === "pie" || type === "donut") {
+    const total = data.reduce((s, d) => s + d.value, 0) || 1;
+    const R = 80, r = type === "donut" ? 46 : 0, cx = 100, cy = 100;
+    let acc = 0;
+    const arcs = data.map((d, i) => {
+      const a0 = (acc / total) * 2 * Math.PI - Math.PI / 2; acc += d.value;
+      const a1 = (acc / total) * 2 * Math.PI - Math.PI / 2;
+      const x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
+      const x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
+      const large = a1 - a0 > Math.PI ? 1 : 0;
+      const p = r > 0
+        ? `M${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} L${cx + r * Math.cos(a1)},${cy + r * Math.sin(a1)} A${r},${r} 0 ${large} 0 ${cx + r * Math.cos(a0)},${cy + r * Math.sin(a0)} Z`
+        : `M${cx},${cy} L${x0},${y0} A${R},${R} 0 ${large} 1 ${x1},${y1} Z`;
+      return <path key={i} d={p} fill={CHART_COLORS[i % CHART_COLORS.length]} />;
+    });
+    return (
+      <div style={wrap}>{titleEl}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
+          <svg viewBox="0 0 200 200" width="180" height="180" style={{ flexShrink: 0 }}>{arcs}</svg>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, minWidth: 180 }}>
+            {data.map((d, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
+                <span style={{ color: "var(--text2)", flex: 1 }}>{d.label}</span>
+                <span style={{ color: "var(--text3)" }}>{fmt(d.value)}（{((d.value / total) * 100).toFixed(1)}%）</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "line") {
+    const max = Math.max(...data.map((d) => d.value)) || 1;
+    const W = 380, H = 170, pad = 30;
+    const pts = data.map((d, i) => {
+      const x = pad + (W - 2 * pad) * (data.length === 1 ? 0.5 : i / (data.length - 1));
+      const y = H - pad - (H - 2 * pad) * (d.value / max);
+      return [x, y] as const;
+    });
+    return (
+      <div style={wrap}>{titleEl}
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxWidth: W }}>
+          <polyline fill="none" stroke="#4f8cff" strokeWidth="2" points={pts.map((p) => p.join(",")).join(" ")} />
+          {pts.map(([x, y], i) => (
+            <g key={i}>
+              <circle cx={x} cy={y} r="3" fill="#4f8cff" />
+              <text x={x} y={y - 8} textAnchor="middle" fontSize="9" fill="var(--text2)">{fmt(data[i].value)}</text>
+              <text x={x} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--text3)">{data[i].label}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+    );
+  }
+
+  // bar（水平長條）
+  const max = Math.max(...data.map((d) => d.value)) || 1;
+  return (
+    <div style={wrap}>{titleEl}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {data.map((d, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+            <span style={{ width: 110, textAlign: "right", color: "var(--text2)", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.label}</span>
+            <div style={{ flex: 1, background: "var(--bg3)", borderRadius: 4, height: 18, position: "relative" }}>
+              <div style={{ width: `${((d.value / max) * 100).toFixed(1)}%`, background: CHART_COLORS[i % CHART_COLORS.length], height: "100%", borderRadius: 4, minWidth: 2 }} />
+            </div>
+            <span style={{ width: 90, color: "var(--text3)", flexShrink: 0 }}>{fmt(d.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── 深度思考塊（可展開/收合）────────────────────────────────────────────────
 export function ThinkingBlock({ content, streaming }: { content: string; streaming?: boolean }) {
   const [open, setOpen] = useState(!!streaming);
@@ -91,6 +180,7 @@ function buildComponents(): Components {
 
       if (isBlock || className) {
         if (lang === "mermaid") return <MermaidBlock code={code} />;
+        if (lang === "chart") return <ChartBlock code={code} />;
         return <CodeBlock lang={lang} code={code} />;
       }
       return <code className="inline-code" {...props}>{children}</code>;

@@ -22,4 +22,9 @@ queueMicrotask(() => {
     .catch((e) => {
       console.error("[main] shim module import failed:", e);
     });
+
+  // 從 Keychain hydrate API keys
+  import("./store/providerStore")
+    .then(({ hydrateKeysFromKeychain }) => hydrateKeysFromKeychain())
+    .catch((e) => console.error("[main] keychain hydrate failed:", e));
 });
