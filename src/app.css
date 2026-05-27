@@ -151,8 +151,8 @@ body {
 }
 
 .sidebar__logo {
-  width: 36px; height: 36px;
-  border-radius: 8px; margin-bottom: 12px; display: block;
+  width: 56px; height: 56px;
+  border-radius: 12px; margin-bottom: 12px; display: block;
 }
 
 /* Sidebar header */

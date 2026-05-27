@@ -1,46 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="xChat">
   <defs>
-    <linearGradient id="redG" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#E8192C"/>
-      <stop offset="100%" stop-color="#8B0010"/>
+    <linearGradient id="b-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF3B47"/>
+      <stop offset="1" stop-color="#C20A1E"/>
     </linearGradient>
-    <linearGradient id="darkG" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1a1a1a"/>
-      <stop offset="100%" stop-color="#0a0a0a"/>
+    <linearGradient id="b-sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
   </defs>
 
-  <!-- Background rounded square -->
-  <rect width="120" height="120" rx="24" fill="url(#darkG)"/>
+  <!-- 紅色圓角方塊 + 頂部柔光 -->
+  <rect x="2" y="2" width="116" height="116" rx="30" fill="url(#b-bg)"/>
+  <rect x="2" y="2" width="116" height="116" rx="30" fill="url(#b-sheen)"/>
 
-  <!-- Outer ring accent -->
-  <rect width="120" height="120" rx="24" fill="none" stroke="#BE1823" stroke-width="1.5" opacity="0.4"/>
-
-  <!-- X shape: two crossing bars with rounded caps -->
-  <g transform="translate(60,56)" filter="url(#glow)">
-    <!-- bar 1: top-left to bottom-right -->
-    <rect x="-36" y="-11" width="72" height="22" rx="11" fill="url(#redG)" transform="rotate(45)"/>
-    <!-- bar 2: top-right to bottom-left -->
-    <rect x="-36" y="-11" width="72" height="22" rx="11" fill="url(#redG)" transform="rotate(-45)"/>
-    <!-- center overlap highlight -->
-    <circle cx="0" cy="0" r="11" fill="#E8192C" opacity="0.9"/>
-    <circle cx="0" cy="0" r="5" fill="#FF4455" opacity="0.7"/>
+  <!-- 主角：粗體白色 X（乾淨圓角、無模糊）-->
+  <g transform="translate(58,54)">
+    <rect x="-27" y="-6.5" width="54" height="13" rx="6.5" fill="#ffffff" transform="rotate(45)"/>
+    <rect x="-27" y="-6.5" width="54" height="13" rx="6.5" fill="#ffffff" transform="rotate(-45)"/>
   </g>
 
-  <!-- Chat bubble indicator bottom-right -->
-  <g transform="translate(88,88)">
-    <rect x="-14" y="-10" width="28" height="20" rx="6" fill="#BE1823"/>
-    <polygon points="-4,10 4,10 0,16" fill="#BE1823"/>
-    <!-- dots inside bubble -->
-    <circle cx="-7" cy="0" r="2.5" fill="#fff" opacity="0.9"/>
-    <circle cx="0" cy="0" r="2.5" fill="#fff" opacity="0.9"/>
-    <circle cx="7" cy="0" r="2.5" fill="#fff" opacity="0.9"/>
+  <!-- 右下小聊天氣泡 badge（點出「chat」，白底紅點）-->
+  <g transform="translate(92,92)">
+    <rect x="-15" y="-12" width="30" height="22" rx="8" fill="#ffffff"/>
+    <path d="M-7 10 L1 10 L-9 19 Z" fill="#ffffff"/>
+    <circle cx="-7" cy="-1" r="2.6" fill="#D11122"/>
+    <circle cx="0" cy="-1" r="2.6" fill="#D11122"/>
+    <circle cx="7" cy="-1" r="2.6" fill="#D11122"/>
   </g>
 </svg>
