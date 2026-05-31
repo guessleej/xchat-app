@@ -908,7 +908,7 @@ export default function App() {
             onClick={() => setWikiOpen(true)}
             title="瀏覽已整理的條目（LLM Wiki）"
           >
-            <span>📚 知識庫</span>
+            <span>知識庫</span>
           </button>
 
           {/* 工具列 */}

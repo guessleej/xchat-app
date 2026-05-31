@@ -88,7 +88,7 @@ export default function WikiPanel({ onClose }: Props) {
           padding: "14px 18px", borderBottom: "1px solid var(--border, #333)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>📚 知識庫（LLM Wiki）</span>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>知識庫（LLM Wiki）</span>
             <span style={{ fontSize: 12, color: "var(--text3, #888)" }}>共 {pages.length} 條目</span>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -114,7 +114,7 @@ export default function WikiPanel({ onClose }: Props) {
                 border: "1px solid var(--border, #555)", cursor: "pointer",
               }}
               title="匯出整個知識庫為 Markdown zip（Obsidian 友善）"
-            >⬇️ 匯出 Markdown</button>
+            >匯出 Markdown</button>
             <button
               onClick={runLint}
               disabled={linting || pages.length === 0}
@@ -125,7 +125,7 @@ export default function WikiPanel({ onClose }: Props) {
                 cursor: linting ? "wait" : "pointer", opacity: linting ? 0.6 : 1,
               }}
               title="LLM 體檢：找矛盾、孤兒、缺失連結"
-            >{linting ? "體檢中…" : "🩺 LLM 體檢"}</button>
+            >{linting ? "體檢中…" : "LLM 體檢"}</button>
             <button
               onClick={onClose}
               style={{ background: "transparent", border: "none", color: "var(--text2, #ccc)", fontSize: 22, cursor: "pointer", padding: "0 6px" }}
@@ -140,7 +140,7 @@ export default function WikiPanel({ onClose }: Props) {
             padding: "12px 18px", fontSize: 13, maxHeight: "30vh", overflowY: "auto",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-              <strong style={{ fontSize: 13 }}>🩺 體檢報告</strong>
+              <strong style={{ fontSize: 13 }}>體檢報告</strong>
               <button onClick={() => setLintReport(null)}
                 style={{ background: "transparent", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 12 }}
               >關閉報告</button>
@@ -148,7 +148,7 @@ export default function WikiPanel({ onClose }: Props) {
             <div style={{ marginBottom: 10, color: "var(--text2, #ddd)" }}>{lintReport.summary || "(無摘要)"}</div>
             {lintReport.contradictions.length > 0 && (
               <div style={{ marginBottom: 8 }}>
-                <div style={{ color: "var(--red, #ff6b6b)", fontWeight: 600, marginBottom: 4 }}>⚠️ 矛盾（{lintReport.contradictions.length}）</div>
+                <div style={{ color: "var(--red, #ff6b6b)", fontWeight: 600, marginBottom: 4 }}>矛盾（{lintReport.contradictions.length}）</div>
                 {lintReport.contradictions.map((c, i) => (
                   <div key={i} style={{ marginLeft: 12, marginBottom: 4 }}>
                     <code style={{ fontSize: 11 }}>{c.slugs.join(" ↔ ")}</code>：{c.issue}
@@ -158,7 +158,7 @@ export default function WikiPanel({ onClose }: Props) {
             )}
             {lintReport.orphans.length > 0 && (
               <div style={{ marginBottom: 8 }}>
-                <div style={{ color: "#e0a000", fontWeight: 600, marginBottom: 4 }}>🪨 孤兒條目（{lintReport.orphans.length}）</div>
+                <div style={{ color: "#e0a000", fontWeight: 600, marginBottom: 4 }}>孤兒條目（{lintReport.orphans.length}）</div>
                 <div style={{ marginLeft: 12 }}>
                   {lintReport.orphans.map((s) => (
                     <code key={s} onClick={() => setSelectedSlug(s)}
@@ -170,7 +170,7 @@ export default function WikiPanel({ onClose }: Props) {
             )}
             {lintReport.missing_links.length > 0 && (
               <div style={{ marginBottom: 4 }}>
-                <div style={{ color: "var(--accent, #4f8cff)", fontWeight: 600, marginBottom: 4 }}>🔗 建議補上的連結（{lintReport.missing_links.length}）</div>
+                <div style={{ color: "var(--accent, #4f8cff)", fontWeight: 600, marginBottom: 4 }}>建議補上的連結（{lintReport.missing_links.length}）</div>
                 {lintReport.missing_links.map((m, i) => (
                   <div key={i} style={{ marginLeft: 12, marginBottom: 4 }}>
                     <code style={{ fontSize: 11 }}>{m.from} → {m.should_relate_to}</code>：{m.reason}
@@ -179,7 +179,7 @@ export default function WikiPanel({ onClose }: Props) {
               </div>
             )}
             {lintReport.contradictions.length + lintReport.orphans.length + lintReport.missing_links.length === 0 && (
-              <div style={{ color: "var(--text3)" }}>✅ 沒發現問題</div>
+              <div style={{ color: "var(--text3)" }}>沒發現問題</div>
             )}
           </div>
         )}
@@ -290,7 +290,7 @@ export default function WikiPanel({ onClose }: Props) {
                             fontSize: 12, padding: "4px 10px", borderRadius: 12,
                             background: "var(--bg3, #2a2a2a)", border: "1px solid var(--border, #333)",
                           }}>
-                          📄 {s.file_name}
+                          {s.file_name}
                         </span>
                       ))}
                     </div>
