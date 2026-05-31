@@ -8,6 +8,7 @@ import { useChatStore } from "./store/chatStore";
 import { useUIStore } from "./store/uiStore";
 import { db } from "./store/db";
 import { MarkdownRenderer } from "./components/MarkdownRenderer";
+import WikiPanel from "./components/WikiPanel";
 import { useProviderStore } from "./store/providerStore";
 import { SEARCH_DEPTHS, SEARCH_MODES, SEARCH_RECENCIES, useSearchStore } from "./store/searchStore";
 import { SettingsModal } from "./components/SettingsModal";
@@ -213,6 +214,7 @@ export default function App() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [historySearch, setHistorySearch] = useState("");
+  const [wikiOpen, setWikiOpen] = useState(false);
 
   const {
     convId, conversations, messages, loading, taskStatus,
@@ -900,6 +902,15 @@ export default function App() {
             <kbd>⌘X</kbd>
           </button>
 
+          {/* 知識庫 */}
+          <button
+            className="sidebar__item"
+            onClick={() => setWikiOpen(true)}
+            title="瀏覽已整理的條目（LLM Wiki）"
+          >
+            <span>📚 知識庫</span>
+          </button>
+
           {/* 工具列 */}
           <nav className="sidebar__nav">
             {TOOLS.slice(1).map((t) => (
@@ -1338,6 +1349,7 @@ export default function App() {
           </aside>
         )}
       </div>{/* end .app-body */}
+      {wikiOpen && <WikiPanel onClose={() => setWikiOpen(false)} />}
     </div>
   );
 }

@@ -406,3 +406,49 @@ export const files = {
       method: "POST", body: JSON.stringify({ question })
     }),
 };
+
+// ─── LLM Wiki（後端：file 服務 /wiki/*）─────────────────────────────────────
+export interface WikiPageSummary {
+  slug: string;
+  title: string;
+  summary: string;
+  key_facts_count: number;
+  sources_count: number;
+  related: string[];
+  updated_at: string | null;
+}
+export interface WikiPageFull {
+  slug: string;
+  title: string;
+  summary: string;
+  key_facts: string[];
+  sources: { file_id: string; file_name: string }[];
+  related: string[];
+  created_at: string | null;
+  updated_at: string | null;
+}
+export interface WikiLintReport {
+  summary: string;
+  contradictions: { slugs: string[]; issue: string }[];
+  orphans: string[];
+  missing_links: { from: string; should_relate_to: string; reason: string }[];
+}
+export const API_BASE = BASE;  // 給 WikiPanel 直接 fetch 用(匯出 zip)
+export const wiki = {
+  list: () =>
+    req<{ data: { count: number; pages: WikiPageSummary[] } }>("/files/wiki/"),
+  get: (slug: string) =>
+    req<{ data: WikiPageFull }>(`/files/wiki/${encodeURIComponent(slug)}`),
+  update: (slug: string, patch: Partial<Pick<WikiPageFull, "title" | "summary" | "key_facts" | "related">>) =>
+    req<{ data: WikiPageFull; message?: string }>(`/files/wiki/${encodeURIComponent(slug)}`, {
+      method: "PUT", body: JSON.stringify(patch),
+    }),
+  remove: (slug: string) =>
+    req<{ data: { slug: string }; message?: string }>(`/files/wiki/${encodeURIComponent(slug)}`, {
+      method: "DELETE",
+    }),
+  lint: () =>
+    req<{ data: { report: WikiLintReport; pages_examined: number } }>("/files/wiki/lint", {
+      method: "POST",
+    }),
+};
