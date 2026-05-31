@@ -407,7 +407,9 @@ export const files = {
     }),
 };
 
-// ─── LLM Wiki（後端：file 服務 /wiki/*）─────────────────────────────────────
+export const API_BASE = BASE;
+
+// ─── LLM Wiki 條目（後端：file 服務 /wiki/*）────────────────────────────────
 export interface WikiPageSummary {
   slug: string;
   title: string;
@@ -427,28 +429,56 @@ export interface WikiPageFull {
   created_at: string | null;
   updated_at: string | null;
 }
+export interface NotebookSummary {
+  name: string;
+  description: string;
+  page_count: number;
+  created_at: string | null;
+  updated_at: string | null;
+  last_page_updated: string | null;
+}
 export interface WikiLintReport {
   summary: string;
   contradictions: { slugs: string[]; issue: string }[];
   orphans: string[];
   missing_links: { from: string; should_relate_to: string; reason: string }[];
 }
-export const API_BASE = BASE;  // 給 WikiPanel 直接 fetch 用(匯出 zip)
+const nbq = (notebook?: string) => (notebook && notebook !== "default" ? `?notebook=${encodeURIComponent(notebook)}` : "");
 export const wiki = {
-  list: () =>
-    req<{ data: { count: number; pages: WikiPageSummary[] } }>("/files/wiki/"),
-  get: (slug: string) =>
-    req<{ data: WikiPageFull }>(`/files/wiki/${encodeURIComponent(slug)}`),
-  update: (slug: string, patch: Partial<Pick<WikiPageFull, "title" | "summary" | "key_facts" | "related">>) =>
-    req<{ data: WikiPageFull; message?: string }>(`/files/wiki/${encodeURIComponent(slug)}`, {
+  // ─── 條目 CRUD（per notebook）
+  list: (notebook?: string) =>
+    req<{ data: { notebook: string; count: number; pages: WikiPageSummary[] } }>(`/files/wiki/${nbq(notebook)}`),
+  get: (slug: string, notebook?: string) =>
+    req<{ data: WikiPageFull }>(`/files/wiki/${encodeURIComponent(slug)}${nbq(notebook)}`),
+  update: (slug: string, patch: Partial<Pick<WikiPageFull, "title" | "summary" | "key_facts" | "related">>, notebook?: string) =>
+    req<{ data: WikiPageFull; message?: string }>(`/files/wiki/${encodeURIComponent(slug)}${nbq(notebook)}`, {
       method: "PUT", body: JSON.stringify(patch),
     }),
-  remove: (slug: string) =>
-    req<{ data: { slug: string }; message?: string }>(`/files/wiki/${encodeURIComponent(slug)}`, {
+  remove: (slug: string, notebook?: string) =>
+    req<{ data: { slug: string }; message?: string }>(`/files/wiki/${encodeURIComponent(slug)}${nbq(notebook)}`, {
       method: "DELETE",
     }),
-  lint: () =>
-    req<{ data: { report: WikiLintReport; pages_examined: number } }>("/files/wiki/lint", {
-      method: "POST",
-    }),
+  // ─── lint / ingest / export per notebook
+  lint: (notebook?: string) =>
+    req<{ data: { notebook: string; report: WikiLintReport; pages_examined: number } }>(
+      `/files/wiki/lint${nbq(notebook)}`, { method: "POST" }),
+  ingest: (fileId: string, notebook?: string) =>
+    req<{ data: { file: string; notebook: string; applied: { slug: string; title: string; created: boolean }[]; count: number }; message?: string }>(
+      `/files/wiki/ingest${nbq(notebook)}`, { method: "POST", body: JSON.stringify({ file_id: fileId }) }),
+  // ─── notebook 管理
+  notebooks: {
+    list: () =>
+      req<{ data: { notebooks: NotebookSummary[]; count: number } }>("/files/wiki/notebooks"),
+    create: (name: string, description?: string) =>
+      req<{ data: NotebookSummary; message?: string }>("/files/wiki/notebooks", {
+        method: "POST", body: JSON.stringify({ name, description: description || "" }),
+      }),
+    rename: (oldName: string, newName: string) =>
+      req<{ data: { old: string; new: string; pages_moved: number }; message?: string }>(
+        `/files/wiki/notebooks/${encodeURIComponent(oldName)}`,
+        { method: "PUT", body: JSON.stringify({ name: newName }) }),
+    remove: (name: string) =>
+      req<{ data: { name: string; pages_deleted: number }; message?: string }>(
+        `/files/wiki/notebooks/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  },
 };

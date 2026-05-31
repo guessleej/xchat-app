@@ -1,13 +1,23 @@
-import { useEffect, useState } from "react";
-import { wiki, type WikiPageSummary, type WikiPageFull, type WikiLintReport, API_BASE } from "../api";
+import { useEffect, useState, useCallback } from "react";
+import {
+  wiki,
+  type WikiPageSummary,
+  type WikiPageFull,
+  type WikiLintReport,
+  type NotebookSummary,
+  API_BASE,
+} from "../api";
 
 interface Props { onClose: () => void }
 
 /**
- * LLM Wiki 條目瀏覽面板（MVP：view-only）
- * 左側列表 / 右側詳情；可在來源檔名 chip、相關條目 slug chip 之間切換。
+ * LLM Wiki 條目瀏覽面板（multi-notebook）
+ * 頂部 notebook 切換器 + 新建/重命名/刪除 notebook
+ * 左：篩選列表；右：詳情；下方體檢報告；header 按鈕：匯出、體檢
  */
 export default function WikiPanel({ onClose }: Props) {
+  const [notebooks, setNotebooks] = useState<NotebookSummary[]>([]);
+  const [currentNB, setCurrentNB] = useState<string>("default");
   const [pages, setPages] = useState<WikiPageSummary[]>([]);
   const [filter, setFilter] = useState("");
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
@@ -18,36 +28,38 @@ export default function WikiPanel({ onClose }: Props) {
   const [lintReport, setLintReport] = useState<WikiLintReport | null>(null);
   const [linting, setLinting] = useState(false);
 
-  const runLint = async () => {
-    setLinting(true); setError("");
+  // ─── 載入 notebooks 列表
+  const reloadNotebooks = useCallback(async () => {
     try {
-      const res = await wiki.lint();
-      setLintReport(res.data.report);
-    } catch (e) {
-      setError("體檢失敗：" + String(e));
-    } finally {
-      setLinting(false);
-    }
-  };
+      const res = await wiki.notebooks.list();
+      setNotebooks(res.data.notebooks);
+      // 若當前選中的 notebook 已被刪 → 退回 default
+      if (!res.data.notebooks.find((n) => n.name === currentNB)) {
+        setCurrentNB("default");
+      }
+    } catch (e) { setError("讀取 notebook 列表失敗：" + String(e)); }
+  }, [currentNB]);
 
-  // 載入列表
+  useEffect(() => { reloadNotebooks(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── 載入當前 notebook 的頁面列表
   useEffect(() => {
-    setLoadingList(true);
-    wiki.list()
+    setLoadingList(true); setSelectedSlug(null); setDetail(null); setLintReport(null);
+    wiki.list(currentNB)
       .then((res) => setPages(res.data.pages))
       .catch((e) => setError(String(e)))
       .finally(() => setLoadingList(false));
-  }, []);
+  }, [currentNB]);
 
-  // 載入單頁詳情
+  // ─── 載入單頁詳情
   useEffect(() => {
     if (!selectedSlug) { setDetail(null); return; }
     setLoadingDetail(true);
-    wiki.get(selectedSlug)
+    wiki.get(selectedSlug, currentNB)
       .then((res) => setDetail(res.data))
       .catch((e) => setError(String(e)))
       .finally(() => setLoadingDetail(false));
-  }, [selectedSlug]);
+  }, [selectedSlug, currentNB]);
 
   const filtered = pages.filter((p) => {
     if (!filter.trim()) return true;
@@ -55,16 +67,69 @@ export default function WikiPanel({ onClose }: Props) {
     return p.title.toLowerCase().includes(q) || p.summary.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q);
   });
 
-  const onDelete = async (slug: string) => {
+  const onDeletePage = async (slug: string) => {
     if (!confirm(`確定刪除條目「${slug}」?(連同向量索引)`)) return;
     try {
-      await wiki.remove(slug);
+      await wiki.remove(slug, currentNB);
       setPages((ps) => ps.filter((p) => p.slug !== slug));
       if (selectedSlug === slug) setSelectedSlug(null);
-    } catch (e) {
-      alert("刪除失敗：" + String(e));
-    }
+      await reloadNotebooks();
+    } catch (e) { alert("刪除失敗：" + String(e)); }
   };
+
+  const runLint = async () => {
+    setLinting(true); setError("");
+    try { const res = await wiki.lint(currentNB); setLintReport(res.data.report); }
+    catch (e) { setError("體檢失敗：" + String(e)); }
+    finally { setLinting(false); }
+  };
+
+  const onCreateNotebook = async () => {
+    const name = prompt("新 notebook 名稱：");
+    if (!name) return;
+    try {
+      await wiki.notebooks.create(name.trim());
+      await reloadNotebooks();
+      setCurrentNB(name.trim());
+    } catch (e) { alert("建立失敗：" + String(e)); }
+  };
+  const onRenameNotebook = async () => {
+    if (currentNB === "default") { alert("default notebook 不可重命名"); return; }
+    const newName = prompt(`把「${currentNB}」重新命名為：`, currentNB);
+    if (!newName || newName === currentNB) return;
+    try {
+      await wiki.notebooks.rename(currentNB, newName.trim());
+      await reloadNotebooks();
+      setCurrentNB(newName.trim());
+    } catch (e) { alert("重命名失敗：" + String(e)); }
+  };
+  const onDeleteNotebook = async () => {
+    if (currentNB === "default") { alert("default notebook 不可刪除"); return; }
+    if (!confirm(`刪除 notebook「${currentNB}」及其所有條目?(不可逆)`)) return;
+    try {
+      await wiki.notebooks.remove(currentNB);
+      setCurrentNB("default");
+      await reloadNotebooks();
+    } catch (e) { alert("刪除失敗：" + String(e)); }
+  };
+
+  const onExport = async () => {
+    try {
+      const token = localStorage.getItem("token") || "";
+      const url = `${API_BASE}/files/wiki/export${currentNB !== "default" ? `?notebook=${encodeURIComponent(currentNB)}` : ""}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const dl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = dl;
+      a.download = `xchat-wiki-${currentNB}-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(dl);
+    } catch (e) { setError("匯出失敗：" + String(e)); }
+  };
+
+  const currentNBMeta = notebooks.find((n) => n.name === currentNB);
 
   return (
     <div
@@ -85,54 +150,79 @@ export default function WikiPanel({ onClose }: Props) {
         {/* Header */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "14px 18px", borderBottom: "1px solid var(--border, #333)",
+          padding: "14px 18px", borderBottom: "1px solid var(--border, #333)", gap: 12,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>知識庫（LLM Wiki）</span>
-            <span style={{ fontSize: 12, color: "var(--text3, #888)" }}>共 {pages.length} 條目</span>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button
-              onClick={async () => {
-                try {
-                  const token = localStorage.getItem("token") || "";
-                  const res = await fetch(`${API_BASE}/files/wiki/export`, { headers: { Authorization: `Bearer ${token}` } });
-                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                  const blob = await res.blob();
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `xchat-wiki-${new Date().toISOString().slice(0,10)}.zip`;
-                  document.body.appendChild(a); a.click(); a.remove();
-                  URL.revokeObjectURL(url);
-                } catch (e) { setError("匯出失敗：" + String(e)); }
-              }}
-              disabled={pages.length === 0}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 16, fontWeight: 600, flexShrink: 0 }}>知識庫</span>
+            {/* notebook 切換 */}
+            <select
+              value={currentNB}
+              onChange={(e) => setCurrentNB(e.target.value)}
               style={{
-                fontSize: 12, padding: "6px 12px", borderRadius: 6,
+                background: "var(--bg3, #2a2a2a)", color: "var(--text)",
+                border: "1px solid var(--border, #444)", borderRadius: 6,
+                padding: "4px 8px", fontSize: 13, maxWidth: 280,
+              }}
+              title="切換 notebook"
+            >
+              {notebooks.map((nb) => (
+                <option key={nb.name} value={nb.name}>
+                  {nb.name}（{nb.page_count}）
+                </option>
+              ))}
+            </select>
+            <button onClick={onCreateNotebook} title="新建 notebook"
+              style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6,
+                background: "transparent", color: "var(--accent, #4f8cff)",
+                border: "1px solid var(--accent, #4f8cff)", cursor: "pointer" }}
+            >+ 新建</button>
+            <button onClick={onRenameNotebook} disabled={currentNB === "default"} title="重命名"
+              style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6,
                 background: "transparent", color: "var(--text2, #ccc)",
-                border: "1px solid var(--border, #555)", cursor: "pointer",
-              }}
-              title="匯出整個知識庫為 Markdown zip（Obsidian 友善）"
+                border: "1px solid var(--border, #555)",
+                cursor: currentNB === "default" ? "not-allowed" : "pointer",
+                opacity: currentNB === "default" ? 0.4 : 1 }}
+            >重命名</button>
+            <button onClick={onDeleteNotebook} disabled={currentNB === "default"} title="刪除 notebook"
+              style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6,
+                background: "transparent", color: "var(--red, #e8192c)",
+                border: "1px solid var(--red, #e8192c)",
+                cursor: currentNB === "default" ? "not-allowed" : "pointer",
+                opacity: currentNB === "default" ? 0.4 : 1 }}
+            >刪除 notebook</button>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+            <button onClick={onExport} disabled={pages.length === 0}
+              style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6,
+                background: "transparent", color: "var(--text2, #ccc)",
+                border: "1px solid var(--border, #555)", cursor: "pointer" }}
+              title="匯出此 notebook 為 Markdown zip"
             >匯出 Markdown</button>
-            <button
-              onClick={runLint}
-              disabled={linting || pages.length === 0}
-              style={{
-                fontSize: 12, padding: "6px 12px", borderRadius: 6,
+            <button onClick={runLint} disabled={linting || pages.length === 0}
+              style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6,
                 background: "transparent", color: "var(--accent, #4f8cff)",
                 border: "1px solid var(--accent, #4f8cff)",
-                cursor: linting ? "wait" : "pointer", opacity: linting ? 0.6 : 1,
-              }}
-              title="LLM 體檢：找矛盾、孤兒、缺失連結"
+                cursor: linting ? "wait" : "pointer", opacity: linting ? 0.6 : 1 }}
+              title="LLM 體檢此 notebook"
             >{linting ? "體檢中…" : "LLM 體檢"}</button>
-            <button
-              onClick={onClose}
-              style={{ background: "transparent", border: "none", color: "var(--text2, #ccc)", fontSize: 22, cursor: "pointer", padding: "0 6px" }}
-              title="關閉"
+            <button onClick={onClose} title="關閉"
+              style={{ background: "transparent", border: "none", color: "var(--text2, #ccc)",
+                fontSize: 22, cursor: "pointer", padding: "0 6px" }}
             >×</button>
           </div>
         </div>
+
+        {currentNBMeta?.description && (
+          <div style={{ padding: "6px 18px", fontSize: 12, color: "var(--text3, #888)",
+            borderBottom: "1px solid var(--border, #333)" }}>
+            {currentNBMeta.description}
+          </div>
+        )}
+        {error && (
+          <div style={{ background: "#5a1a1a", color: "#fdd", padding: "8px 14px", fontSize: 13 }}>
+            {error}
+          </div>
+        )}
 
         {lintReport && (
           <div style={{
@@ -140,7 +230,7 @@ export default function WikiPanel({ onClose }: Props) {
             padding: "12px 18px", fontSize: 13, maxHeight: "30vh", overflowY: "auto",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-              <strong style={{ fontSize: 13 }}>體檢報告</strong>
+              <strong style={{ fontSize: 13 }}>體檢報告（{currentNB}）</strong>
               <button onClick={() => setLintReport(null)}
                 style={{ background: "transparent", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 12 }}
               >關閉報告</button>
@@ -184,19 +274,9 @@ export default function WikiPanel({ onClose }: Props) {
           </div>
         )}
 
-        {error && (
-          <div style={{ background: "#5a1a1a", color: "#fdd", padding: "8px 14px", fontSize: 13 }}>
-            {error}
-          </div>
-        )}
-
         {/* Body：列表(左) + 詳情(右) */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          {/* 左：列表 */}
-          <div style={{
-            width: "38%", minWidth: 280, borderRight: "1px solid var(--border, #333)",
-            display: "flex", flexDirection: "column",
-          }}>
+          <div style={{ width: "38%", minWidth: 280, borderRight: "1px solid var(--border, #333)", display: "flex", flexDirection: "column" }}>
             <div style={{ padding: 10 }}>
               <input
                 placeholder="篩選條目（標題/摘要/slug）"
@@ -213,20 +293,19 @@ export default function WikiPanel({ onClose }: Props) {
               {loadingList && <div style={{ padding: 16, color: "var(--text3)" }}>載入中…</div>}
               {!loadingList && filtered.length === 0 && (
                 <div style={{ padding: 16, color: "var(--text3)", fontSize: 13 }}>
-                  {pages.length === 0 ? "知識庫尚無條目。叫 xChat「ingest 這份檔案」就會自動建。" : "無符合的條目"}
+                  {pages.length === 0
+                    ? `notebook「${currentNB}」尚無條目。叫 xChat「整理進 wiki」或上傳檔案自動建。`
+                    : "無符合的條目"}
                 </div>
               )}
               {filtered.map((p) => (
-                <button
-                  key={p.slug}
-                  onClick={() => setSelectedSlug(p.slug)}
+                <button key={p.slug} onClick={() => setSelectedSlug(p.slug)}
                   style={{
                     display: "block", width: "100%", textAlign: "left",
                     background: selectedSlug === p.slug ? "var(--bg3, #2a2a2a)" : "transparent",
                     border: "none", color: "var(--text)", padding: "10px 12px",
                     borderRadius: 8, cursor: "pointer", marginBottom: 2,
-                  }}
-                >
+                  }}>
                   <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{p.title}</div>
                   <div style={{ fontSize: 12, color: "var(--text3, #888)", lineHeight: 1.5,
                     overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
@@ -240,7 +319,6 @@ export default function WikiPanel({ onClose }: Props) {
             </div>
           </div>
 
-          {/* 右：詳情 */}
           <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
             {!selectedSlug && (
               <div style={{ color: "var(--text3)", padding: 40, textAlign: "center" }}>
@@ -259,19 +337,13 @@ export default function WikiPanel({ onClose }: Props) {
                     更新於 {new Date(detail.updated_at).toLocaleString()}
                   </div>
                 )}
-
                 <section style={{ marginBottom: 18 }}>
                   <div style={{ fontSize: 12, color: "var(--text3, #888)", marginBottom: 6 }}>摘要</div>
-                  <div style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
-                    {detail.summary || "(無)"}
-                  </div>
+                  <div style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{detail.summary || "(無)"}</div>
                 </section>
-
                 {detail.key_facts.length > 0 && (
                   <section style={{ marginBottom: 18 }}>
-                    <div style={{ fontSize: 12, color: "var(--text3, #888)", marginBottom: 6 }}>
-                      重點事實（{detail.key_facts.length}）
-                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text3, #888)", marginBottom: 6 }}>重點事實（{detail.key_facts.length}）</div>
                     <ul style={{ margin: 0, paddingLeft: 22 }}>
                       {detail.key_facts.map((f, i) => (
                         <li key={i} style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 2 }}>{f}</li>
@@ -279,53 +351,40 @@ export default function WikiPanel({ onClose }: Props) {
                     </ul>
                   </section>
                 )}
-
                 {detail.sources.length > 0 && (
                   <section style={{ marginBottom: 18 }}>
                     <div style={{ fontSize: 12, color: "var(--text3, #888)", marginBottom: 6 }}>來源檔案</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {detail.sources.map((s, i) => (
                         <span key={i} title={s.file_id}
-                          style={{
-                            fontSize: 12, padding: "4px 10px", borderRadius: 12,
-                            background: "var(--bg3, #2a2a2a)", border: "1px solid var(--border, #333)",
-                          }}>
+                          style={{ fontSize: 12, padding: "4px 10px", borderRadius: 12,
+                            background: "var(--bg3, #2a2a2a)", border: "1px solid var(--border, #333)" }}>
                           {s.file_name}
                         </span>
                       ))}
                     </div>
                   </section>
                 )}
-
                 {detail.related.length > 0 && (
                   <section style={{ marginBottom: 18 }}>
                     <div style={{ fontSize: 12, color: "var(--text3, #888)", marginBottom: 6 }}>相關條目</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {detail.related.map((r) => (
-                        <button key={r}
-                          onClick={() => setSelectedSlug(r)}
-                          style={{
-                            fontSize: 12, padding: "4px 10px", borderRadius: 12,
+                        <button key={r} onClick={() => setSelectedSlug(r)}
+                          style={{ fontSize: 12, padding: "4px 10px", borderRadius: 12,
                             background: "transparent", color: "var(--accent, #4f8cff)",
-                            border: "1px solid var(--accent, #4f8cff)", cursor: "pointer",
-                          }}>
-                          → {r}
-                        </button>
+                            border: "1px solid var(--accent, #4f8cff)", cursor: "pointer" }}
+                        >→ {r}</button>
                       ))}
                     </div>
                   </section>
                 )}
-
                 <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border, #333)" }}>
-                  <button
-                    onClick={() => onDelete(detail.slug)}
-                    style={{
-                      fontSize: 12, padding: "6px 12px", borderRadius: 6,
+                  <button onClick={() => onDeletePage(detail.slug)}
+                    style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6,
                       background: "transparent", color: "var(--red, #e8192c)",
-                      border: "1px solid var(--red, #e8192c)", cursor: "pointer",
-                    }}>
-                    刪除此條目
-                  </button>
+                      border: "1px solid var(--red, #e8192c)", cursor: "pointer" }}
+                  >刪除此條目</button>
                 </div>
               </>
             )}
