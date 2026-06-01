@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useUIStore } from "../store/uiStore";
-import { useProviderStore } from "../store/providerStore";
 import {
   SEARCH_MODES, SEARCH_DEPTHS, SEARCH_RECENCIES,
   useSearchStore,
 } from "../store/searchStore";
-import { auth } from "../api";
+import { auth, models, type ModelInfo } from "../api";
 import { decodeJWT } from "../App";
 
 interface Props {
@@ -17,8 +16,9 @@ const AVATAR_CACHE_KEY = "xchat-avatar-cache";
 
 export function SettingsModal({ onClose }: Props) {
   const { theme, toggleTheme } = useUIStore();
-  const { providers, activeId, setActive, updateProvider } = useProviderStore();
-  const activeProvider = providers.find((p) => p.id === activeId) ?? providers[0];
+  // 模型由伺服器集中管理：唯讀顯示 GET /models 回傳的品牌化引擎
+  const [engineList, setEngineList] = useState<ModelInfo[]>([]);
+  useEffect(() => { models().then(setEngineList).catch(() => {}); }, []);
 
   const {
     mode: searchMode, depth: searchDepth, recency: searchRecency,
@@ -199,32 +199,24 @@ export function SettingsModal({ onClose }: Props) {
             </div>
           </div>
 
-          {/* ── 模型 ─────────────────────────────────────── */}
-          <div className="settings-section-title">模型</div>
-
-          <div className="settings-row">
-            <div className="settings-row__label">LLM 來源</div>
-            <select className="settings-select" value={activeId}
-              onChange={(e) => setActive(e.target.value)}>
-              {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-
-          <div className="settings-row">
-            <div className="settings-row__label">模型名稱</div>
-            <input className="settings-input" value={activeProvider?.model ?? ""}
-              onChange={(e) => updateProvider(activeId, { model: e.target.value })}
-              placeholder="輸入模型名稱" />
-          </div>
-
-          {activeProvider && (
-            <div className="settings-row">
-              <div className="settings-row__label">API 端點</div>
-              <input className="settings-input" value={activeProvider.baseUrl}
-                onChange={(e) => updateProvider(activeId, { baseUrl: e.target.value })}
-                placeholder="http://..." />
+          {/* ── AI 引擎（伺服器集中管理，唯讀）─────────────── */}
+          <div className="settings-section-title">AI 引擎</div>
+          <div className="settings-row" style={{ alignItems: "flex-start" }}>
+            <div className="settings-row__label">引擎</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {engineList.length > 0 ? engineList.map((m) => (
+                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green,#3dd68c)", flexShrink: 0 }} />
+                  <span style={{ fontWeight: 600 }}>{m.label}</span>
+                  {m.default && <span style={{ fontSize: 10, color: "var(--text3,#999)" }}>· 預設</span>}
+                  <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text3,#999)" }}>地端</span>
+                </div>
+              )) : <div style={{ color: "var(--text2,#999)", fontSize: 13 }}>讀取中…</div>}
+              <div style={{ fontSize: 11, color: "var(--text3,#999)", marginTop: 4, lineHeight: 1.5 }}>
+                模型由云碩伺服器集中管理、運行於地端基礎設施；資料不外傳，無需設定端點或金鑰。
+              </div>
             </div>
-          )}
+          </div>
 
           {/* ── 搜尋 ─────────────────────────────────────── */}
           <div className="settings-section-title">搜尋</div>
