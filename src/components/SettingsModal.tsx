@@ -14,6 +14,32 @@ interface Props {
 // 為了讓 sidebar 跟其他頁面同步，仍快取一份在 localStorage（不是 source of truth）
 const AVATAR_CACHE_KEY = "xchat-avatar-cache";
 
+// 把使用者選的圖片用 canvas 縮成小縮圖（max px、JPEG quality）。
+// 避免原圖（可達數 MB）轉成巨大 base64 同時塞 localStorage/送後端/重繪 → WKWebView 卡死。
+function shrinkImage(file: File, max = 256, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("讀取圖片失敗"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("不支援的圖片格式"));
+      img.onload = () => {
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("canvas 不可用")); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export function SettingsModal({ onClose }: Props) {
   const { theme, toggleTheme } = useUIStore();
   // 模型由伺服器集中管理：唯讀顯示 GET /models 回傳的品牌化引擎
@@ -88,25 +114,20 @@ export function SettingsModal({ onClose }: Props) {
 
   const onPickAvatar = () => fileInputRef.current?.click();
 
-  const onAvatarFile = (f: File | null) => {
+  const onAvatarFile = async (f: File | null) => {
     if (!f) return;
-    if (f.size > 2 * 1024 * 1024) { setNameError("圖片需小於 2 MB"); return; }
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const url = ev.target?.result as string;
+    setSavingAvatar(true); setNameError("");
+    try {
+      // 先縮成 256px JPEG（約數十 KB）→ 避免巨大 base64 讓 WKWebView 卡死
+      const url = await shrinkImage(f, 256, 0.85);
       setAvatarDataUrl(url);
-      localStorage.setItem(AVATAR_CACHE_KEY, url);
-      // 同步上傳到後端
-      setSavingAvatar(true); setNameError("");
-      try {
-        await auth.updateProfile({ avatar_url: url });
-        window.dispatchEvent(new CustomEvent("xchat:profile-updated"));
-      } catch (e) {
-        setNameError("上傳大頭照失敗：" + ((e as Error).message || ""));
-      }
-      setSavingAvatar(false);
-    };
-    reader.readAsDataURL(f);
+      try { localStorage.setItem(AVATAR_CACHE_KEY, url); } catch { /* localStorage 滿則略過快取 */ }
+      await auth.updateProfile({ avatar_url: url });
+      window.dispatchEvent(new CustomEvent("xchat:profile-updated"));
+    } catch (e) {
+      setNameError("上傳大頭照失敗：" + ((e as Error).message || ""));
+    }
+    setSavingAvatar(false);
   };
 
   const onClearAvatar = async () => {
