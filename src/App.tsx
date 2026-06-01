@@ -817,11 +817,7 @@ export default function App() {
   // ── 訊息條目（useCallback 穩定引用，供 Virtuoso 使用）──────────────────────
   const MessageItem = useCallback((_index: number, msg: typeof messages[0]) => (
     <div key={msg.id} className={`msg msg--${msg.role}`}>
-      {msg.role === "assistant" && (
-        <div className="msg__avatar msg__avatar--ai">
-          <img src={XChatLogo} alt="xChat" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-        </div>
-      )}
+      <div className="msg__who">{msg.role === "assistant" ? "xChat" : "你"}</div>
       <div className="msg__bubble">
         {msg.images && msg.images.length > 0 && (
           <div className="msg__images">
@@ -851,11 +847,6 @@ export default function App() {
           </div>
         )}
       </div>
-      {msg.role === "user" && (
-        profile.avatar_url
-          ? <img src={profile.avatar_url} alt="" className="msg__avatar msg__avatar--user msg__avatar--img" />
-          : <div className="msg__avatar msg__avatar--user">{(profile.username || "U").slice(0, 1).toUpperCase()}</div>
-      )}
     </div>
   ), [profile.username, profile.avatar_url]);
 

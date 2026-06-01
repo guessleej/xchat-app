@@ -49,7 +49,7 @@ export default defineConfig({
   },
   build: {
     target: "es2021",
-    minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
+    minify: !process.env.TAURI_DEBUG ? "terser" : false,  // esbuild 0.21 minify 在 node 24 會 deadlock，改用 terser
     sourcemap: !!process.env.TAURI_DEBUG,
   },
 });
