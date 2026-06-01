@@ -83,6 +83,10 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────
 
+// ─── 模型（伺服器集中管理；前端只顯示品牌化名稱，不碰端點/金鑰）──────────────
+export interface ModelInfo { id: string; label: string; description?: string; default?: boolean }
+export const models = () => req<{ data: ModelInfo[] }>("/chat/models").then((r) => r.data);
+
 export const auth = {
   login: async (email: string, password: string) => {
     const res = await req<{ access_token: string; refresh_token?: string }>("/auth/login", {
