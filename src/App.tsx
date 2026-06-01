@@ -8,6 +8,7 @@ import { useChatStore } from "./store/chatStore";
 import { useUIStore } from "./store/uiStore";
 import { db } from "./store/db";
 import { MarkdownRenderer } from "./components/MarkdownRenderer";
+import { Dropdown } from "./components/Dropdown";
 import WikiPanel from "./components/WikiPanel";
 import { useProviderStore } from "./store/providerStore";
 import { SEARCH_DEPTHS, SEARCH_MODES, SEARCH_RECENCIES, useSearchStore } from "./store/searchStore";
@@ -1245,15 +1246,15 @@ export default function App() {
               {webAccess && (
                 <div className="input-box__search-settings">
                   <span className="input-box__search-label">搜尋設定</span>
-                  <select className="input-box__select" value={searchMode} onChange={(e) => setSearchMode(e.target.value as typeof searchMode)} title="搜尋策略">
-                    {SEARCH_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-                  </select>
-                  <select className="input-box__select" value={searchDepth} onChange={(e) => setSearchDepth(e.target.value as typeof searchDepth)} title="搜尋深度">
-                    {SEARCH_DEPTHS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
-                  </select>
-                  <select className="input-box__select" value={searchRecency} onChange={(e) => setSearchRecency(e.target.value as typeof searchRecency)} title="時間範圍">
-                    {SEARCH_RECENCIES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-                  </select>
+                  <Dropdown className="input-box__select" value={searchMode} title="搜尋策略"
+                    options={SEARCH_MODES.map((m) => ({ id: m.id, label: m.label }))}
+                    onChange={(v) => setSearchMode(v as typeof searchMode)} />
+                  <Dropdown className="input-box__select" value={searchDepth} title="搜尋深度"
+                    options={SEARCH_DEPTHS.map((d) => ({ id: d.id, label: d.label }))}
+                    onChange={(v) => setSearchDepth(v as typeof searchDepth)} />
+                  <Dropdown className="input-box__select" value={searchRecency} title="時間範圍"
+                    options={SEARCH_RECENCIES.map((r) => ({ id: r.id, label: r.label }))}
+                    onChange={(v) => setSearchRecency(v as typeof searchRecency)} />
                   <input className="input-box__sources-input" value={searchSourcesText} onChange={(e) => setSearchSourcesText(e.target.value)} placeholder="site: 可逗號分隔" title="限定來源" />
                 </div>
               )}

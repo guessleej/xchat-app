@@ -244,26 +244,32 @@ export function SettingsModal({ onClose }: Props) {
 
           <div className="settings-row">
             <div className="settings-row__label">搜尋策略</div>
-            <select className="settings-select" value={searchMode}
-              onChange={(e) => setSearchMode(e.target.value as typeof searchMode)}>
-              {SEARCH_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-            </select>
+            <div className="settings-row__control" style={{ flexWrap: "wrap" }}>
+              {SEARCH_MODES.map((m) => (
+                <button key={m.id} className={`settings-theme-btn ${searchMode === m.id ? "active" : ""}`}
+                  onClick={() => setSearchMode(m.id)}>{m.label}</button>
+              ))}
+            </div>
           </div>
 
           <div className="settings-row">
             <div className="settings-row__label">搜尋深度</div>
-            <select className="settings-select" value={searchDepth}
-              onChange={(e) => setSearchDepth(e.target.value as typeof searchDepth)}>
-              {SEARCH_DEPTHS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
-            </select>
+            <div className="settings-row__control" style={{ flexWrap: "wrap" }}>
+              {SEARCH_DEPTHS.map((d) => (
+                <button key={d.id} className={`settings-theme-btn ${searchDepth === d.id ? "active" : ""}`}
+                  onClick={() => setSearchDepth(d.id)}>{d.label}</button>
+              ))}
+            </div>
           </div>
 
           <div className="settings-row">
             <div className="settings-row__label">時間範圍</div>
-            <select className="settings-select" value={searchRecency}
-              onChange={(e) => setSearchRecency(e.target.value as typeof searchRecency)}>
-              {SEARCH_RECENCIES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-            </select>
+            <div className="settings-row__control" style={{ flexWrap: "wrap" }}>
+              {SEARCH_RECENCIES.map((r) => (
+                <button key={r.id} className={`settings-theme-btn ${searchRecency === r.id ? "active" : ""}`}
+                  onClick={() => setSearchRecency(r.id)}>{r.label}</button>
+              ))}
+            </div>
           </div>
 
           <div className="settings-row">

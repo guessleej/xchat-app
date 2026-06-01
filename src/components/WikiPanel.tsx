@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Dropdown } from "./Dropdown";
 import {
   wiki,
   type WikiPageSummary,
@@ -159,23 +160,14 @@ export default function WikiPanel({ onClose }: Props) {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
             <span style={{ fontSize: 16, fontWeight: 600, flexShrink: 0 }}>知識庫</span>
-            {/* notebook 切換 */}
-            <select
+            {/* notebook 切換（WKWebView 安全的自製下拉）*/}
+            <Dropdown
               value={currentNB}
-              onChange={(e) => setCurrentNB(e.target.value)}
-              style={{
-                background: "var(--bg3, #2a2a2a)", color: "var(--text)",
-                border: "1px solid var(--border, #444)", borderRadius: 6,
-                padding: "4px 8px", fontSize: 13, maxWidth: 280,
-              }}
+              onChange={(v) => setCurrentNB(v)}
               title="切換 notebook"
-            >
-              {notebooks.map((nb) => (
-                <option key={nb.name} value={nb.name}>
-                  {nb.name}（{nb.page_count}）
-                </option>
-              ))}
-            </select>
+              style={{ maxWidth: 280 }}
+              options={notebooks.map((nb) => ({ id: nb.name, label: `${nb.name}（${nb.page_count}）` }))}
+            />
             <button onClick={onCreateNotebook} title="新建 notebook"
               style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6,
                 background: "transparent", color: "var(--accent, #4f8cff)",
