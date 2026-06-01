@@ -27,6 +27,11 @@ export default function WikiPanel({ onClose }: Props) {
   const [error, setError] = useState<string>("");
   const [lintReport, setLintReport] = useState<WikiLintReport | null>(null);
   const [linting, setLinting] = useState(false);
+  // WKWebView 不支援原生 prompt/confirm，改用自製 modal（web 也通用）
+  const [modal, setModal] = useState<null | { title: string; isPrompt: boolean; value: string; resolve: (v: string | null) => void }>(null);
+  const askPrompt = (title: string, def = "") => new Promise<string | null>((resolve) => setModal({ title, isPrompt: true, value: def, resolve }));
+  const askConfirm = (title: string) => new Promise<boolean>((resolve) => setModal({ title, isPrompt: false, value: "", resolve: (v) => resolve(v !== null) }));
+
 
   // ─── 載入 notebooks 列表
   const reloadNotebooks = useCallback(async () => {
@@ -68,13 +73,13 @@ export default function WikiPanel({ onClose }: Props) {
   });
 
   const onDeletePage = async (slug: string) => {
-    if (!confirm(`確定刪除條目「${slug}」?(連同向量索引)`)) return;
+    if (!(await askConfirm(`確定刪除條目「${slug}」?(連同向量索引)`))) return;
     try {
       await wiki.remove(slug, currentNB);
       setPages((ps) => ps.filter((p) => p.slug !== slug));
       if (selectedSlug === slug) setSelectedSlug(null);
       await reloadNotebooks();
-    } catch (e) { alert("刪除失敗：" + String(e)); }
+    } catch (e) { setError("刪除失敗：" + String(e)); }
   };
 
   const runLint = async () => {
@@ -85,32 +90,32 @@ export default function WikiPanel({ onClose }: Props) {
   };
 
   const onCreateNotebook = async () => {
-    const name = prompt("新 notebook 名稱：");
+    const name = await askPrompt("新 notebook 名稱：");
     if (!name) return;
     try {
       await wiki.notebooks.create(name.trim());
       await reloadNotebooks();
       setCurrentNB(name.trim());
-    } catch (e) { alert("建立失敗：" + String(e)); }
+    } catch (e) { setError("建立失敗：" + String(e)); }
   };
   const onRenameNotebook = async () => {
-    if (currentNB === "default") { alert("default notebook 不可重命名"); return; }
-    const newName = prompt(`把「${currentNB}」重新命名為：`, currentNB);
+    if (currentNB === "default") { setError("default notebook 不可重命名"); return; }
+    const newName = await askPrompt(`把「${currentNB}」重新命名為：`, currentNB);
     if (!newName || newName === currentNB) return;
     try {
       await wiki.notebooks.rename(currentNB, newName.trim());
       await reloadNotebooks();
       setCurrentNB(newName.trim());
-    } catch (e) { alert("重命名失敗：" + String(e)); }
+    } catch (e) { setError("重命名失敗：" + String(e)); }
   };
   const onDeleteNotebook = async () => {
-    if (currentNB === "default") { alert("default notebook 不可刪除"); return; }
-    if (!confirm(`刪除 notebook「${currentNB}」及其所有條目?(不可逆)`)) return;
+    if (currentNB === "default") { setError("default notebook 不可刪除"); return; }
+    if (!(await askConfirm(`刪除 notebook「${currentNB}」及其所有條目?(不可逆)`))) return;
     try {
       await wiki.notebooks.remove(currentNB);
       setCurrentNB("default");
       await reloadNotebooks();
-    } catch (e) { alert("刪除失敗：" + String(e)); }
+    } catch (e) { setError("刪除失敗：" + String(e)); }
   };
 
   const onExport = async () => {
@@ -391,6 +396,20 @@ export default function WikiPanel({ onClose }: Props) {
           </div>
         </div>
       </div>
+      {modal && (
+        <div onClick={() => { modal.resolve(null); setModal(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg2,#1c1c22)", border: "1px solid var(--border,#333)", borderRadius: 8, padding: 20, minWidth: 320, maxWidth: 440, boxShadow: "0 8px 28px rgba(0,0,0,.4)" }}>
+            <div style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 12, color: "var(--text,#eee)", whiteSpace: "pre-wrap" }}>{modal.title}</div>
+            {modal.isPrompt && (
+              <input autoFocus value={modal.value} onChange={(e) => setModal({ ...modal, value: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") { modal.resolve(modal.value); setModal(null); } else if (e.key === "Escape") { modal.resolve(null); setModal(null); } }} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border,#333)", background: "var(--bg,#111)", color: "var(--text,#eee)", fontSize: 14, marginBottom: 14, outline: "none", boxSizing: "border-box" }} />
+            )}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => { modal.resolve(null); setModal(null); }} style={{ padding: "6px 14px", borderRadius: 6, border: "1px solid var(--border,#333)", background: "transparent", color: "var(--text2,#aaa)", cursor: "pointer", fontSize: 13 }}>取消</button>
+              <button onClick={() => { modal.resolve(modal.isPrompt ? modal.value : ""); setModal(null); }} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: "var(--accent,#e0121f)", color: "#fff", cursor: "pointer", fontSize: 13 }}>確定</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
