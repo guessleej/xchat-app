@@ -131,18 +131,7 @@ export function streamChat(
       "Content-Type": "application/json",
       Authorization: `Bearer ${tok}`,
     };
-    // Provider override：從 Zustand store 動態取（key 來自 Keychain hydrate）
-    try {
-      // 動態 import 避免 api 模組與 store 形成 hard cycle
-      const { useProviderStore } = await import("../store/providerStore");
-      const p = useProviderStore.getState().active();
-      if (p && p.id !== "spark-mistral") {
-        headers["X-LLM-Base-URL"] = p.baseUrl;
-        headers["X-LLM-API-Key"] = p.apiKey;
-        headers["X-LLM-Model"] = p.model;
-        headers["X-LLM-Kind"] = p.kind;
-      }
-    } catch {}
+    // 模型由伺服器集中管理：不再從客戶端送端點/金鑰/模型（避免金鑰外洩、確保用對引擎）
 
     fetch(`${BASE}/chat/conversations/${convId}/messages`, {
       method: "POST",
