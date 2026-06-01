@@ -71,10 +71,14 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new Error("Unauthorized");
   }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: "Unknown error" }));
-    throw new Error(err.detail ?? err.message);
+    const txt = await res.text().catch(() => "");
+    let detail = "";
+    try { const j = JSON.parse(txt); detail = j.detail ?? j.message ?? ""; } catch {}
+    throw new Error(`HTTP ${res.status}${detail ? "：" + detail : (txt ? "：" + txt.slice(0, 120) : "")}`);
   }
-  return res.json();
+  // 成功：空 body（如 204 或某些代理回應）不應丟錯
+  const okTxt = await res.text();
+  return (okTxt ? JSON.parse(okTxt) : ({} as T));
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────
