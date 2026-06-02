@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Dropdown } from "./Dropdown";
 import {
   wiki,
+  files,
   type WikiPageSummary,
   type WikiPageFull,
   type WikiLintReport,
@@ -33,6 +34,9 @@ export default function WikiPanel({ onClose }: Props) {
   const [modal, setModal] = useState<null | { title: string; isPrompt: boolean; value: string; resolve: (v: string | null) => void }>(null);
   const askPrompt = (title: string, def = "") => new Promise<string | null>((resolve) => setModal({ title, isPrompt: true, value: def, resolve }));
   const askConfirm = (title: string) => new Promise<boolean>((resolve) => setModal({ title, isPrompt: false, value: "", resolve: (v) => resolve(v !== null) }));
+  const [reloadKey, setReloadKey] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
 
   // ─── 載入 notebooks 列表
@@ -56,7 +60,7 @@ export default function WikiPanel({ onClose }: Props) {
       .then((res) => setPages(res.data.pages))
       .catch((e) => setError(String(e)))
       .finally(() => setLoadingList(false));
-  }, [currentNB]);
+  }, [currentNB, reloadKey]);
 
   // ─── 載入單頁詳情
   useEffect(() => {
@@ -73,6 +77,25 @@ export default function WikiPanel({ onClose }: Props) {
     const q = filter.toLowerCase();
     return p.title.toLowerCase().includes(q) || p.summary.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q);
   });
+
+  // 上傳檔案 → 自動 ingest 進當前 notebook（LLM 萃取建/更新條目）
+  const onUploadFile = async (f: File | null) => {
+    if (!f) return;
+    setUploading(true); setError("");
+    try {
+      const up = await files.upload(f);
+      const fid = up.data?.file_id;
+      if (!fid) throw new Error("上傳未取得 file_id");
+      await wiki.ingest(fid, currentNB);
+      await reloadNotebooks();
+      setReloadKey((k) => k + 1);  // 觸發條目列表重載
+    } catch (e) {
+      setError("上傳/整理失敗：" + String(e));
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   const onDeletePage = async (slug: string) => {
     if (!(await askConfirm(`確定刪除條目「${slug}」?(連同向量索引)`))) return;
@@ -182,6 +205,14 @@ export default function WikiPanel({ onClose }: Props) {
             >刪除 notebook</button>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+            <input ref={fileRef} type="file" hidden
+              onChange={(e) => onUploadFile(e.target.files?.[0] ?? null)} />
+            <button onClick={() => fileRef.current?.click()} disabled={uploading}
+              style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6,
+                background: "var(--accent, #e0121f)", color: "#fff",
+                border: "none", cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.6 : 1 }}
+              title={`上傳檔案並整理進「${currentNB}」知識庫`}
+            >{uploading ? "整理中…" : "＋ 上傳檔案"}</button>
             <button onClick={onExport} disabled={pages.length === 0}
               style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6,
                 background: "transparent", color: "var(--text2, #ccc)",
