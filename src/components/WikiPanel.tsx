@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Dropdown } from "./Dropdown";
 import LocalKBPanel from "./LocalKBPanel";
+import KBFilesPanel from "./KBFilesPanel";
 import { isTauri } from "../lib/local-kb";
 import {
   wiki,
@@ -39,6 +40,7 @@ export default function WikiPanel({ onClose }: Props) {
   const [reloadKey, setReloadKey] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [localOpen, setLocalOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
 
@@ -224,6 +226,12 @@ export default function WikiPanel({ onClose }: Props) {
                 border: "none", cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.6 : 1 }}
               title={`上傳檔案並整理進「${currentNB}」知識庫`}
             >{uploading ? "整理中…" : "＋ 上傳檔案"}</button>
+            <button onClick={() => setFilesOpen(true)}
+              style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6,
+                background: "transparent", color: "var(--text2, #ccc)",
+                border: "1px solid var(--border, #555)", cursor: "pointer" }}
+              title="管理已上傳的檔案（單選/多選刪除）"
+            >📄 上傳的檔案</button>
             {isTauri() && (
               <button onClick={() => setLocalOpen(true)}
                 style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6,
@@ -446,6 +454,7 @@ export default function WikiPanel({ onClose }: Props) {
         </div>
       )}
       {localOpen && <LocalKBPanel onClose={() => setLocalOpen(false)} />}
+      {filesOpen && <KBFilesPanel onClose={() => setFilesOpen(false)} />}
     </div>
   );
 }

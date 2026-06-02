@@ -448,7 +448,23 @@ export const files = {
     req<{ data: { answer: string } }>(`/files/files/${fileId}/ask`, {
       method: "POST", body: JSON.stringify({ question })
     }),
+  // 列出此知識庫已上傳的檔案
+  list: () => req<{ data: { items: KBFile[] } }>("/files/files"),
+  // 批次刪除（單選=1個、多選=多個）；連動清向量+原檔+記錄
+  batchDelete: (fileIds: string[]) =>
+    req<{ data: { deleted: string[]; missing: string[]; count: number }; message?: string }>(
+      "/files/files/batch-delete", { method: "POST", body: JSON.stringify({ file_ids: fileIds }) }),
 };
+
+export interface KBFile {
+  file_id: string;
+  file_name: string;
+  size_bytes?: number;
+  mime_type?: string;
+  page_count?: number | null;
+  text_length?: number;
+  uploaded_at?: string | null;
+}
 
 // ─── 本地優先知識庫（原檔留本機，只索引向量）────────────────────────────────
 export interface LocalDoc {
