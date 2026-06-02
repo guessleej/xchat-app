@@ -414,12 +414,34 @@ export function streamComputer(
 
 // ─── File ─────────────────────────────────────────────────────────────────
 
+// 手動組 multipart/form-data：固定 boundary + 明確 Content-Type，避免 Tauri plugin-http
+// 送 FormData 時 body 邊界與標頭邊界不一致導致後端「Did not find boundary character」400。
+async function buildMultipart(file: File, fields: Record<string, string>): Promise<{ body: Uint8Array; contentType: string }> {
+  const boundary = "----xchatBoundary" + Math.random().toString(16).slice(2) + Date.now().toString(16);
+  const enc = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+  for (const [k, v] of Object.entries(fields)) {
+    chunks.push(enc.encode(`--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`));
+  }
+  const fileBytes = new Uint8Array(await file.arrayBuffer());
+  chunks.push(enc.encode(
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${file.name}"\r\n` +
+    `Content-Type: ${file.type || "application/octet-stream"}\r\n\r\n`
+  ));
+  chunks.push(fileBytes);
+  chunks.push(enc.encode(`\r\n--${boundary}--\r\n`));
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const body = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) { body.set(c, off); off += c.length; }
+  return { body, contentType: `multipart/form-data; boundary=${boundary}` };
+}
+
 export const files = {
-  upload: (file: File) => {
-    const form = new FormData();
-    form.append("file", file);
+  upload: async (file: File) => {
+    const { body, contentType } = await buildMultipart(file, {});
     return req<{ data: { file_id: string; file_name: string; extracted_text: string } }>(
-      "/files/upload", { method: "POST", body: form }
+      "/files/upload", { method: "POST", body: body as unknown as BodyInit, headers: { "Content-Type": contentType } }
     );
   },
   ask: (fileId: string, question: string) =>
@@ -438,13 +460,10 @@ export interface LocalDoc {
 }
 export const local = {
   // 上傳檔案內容做 OCR+embedding；原始位元組過手即丟，只存向量並標記 local_path
-  ingest: (file: File, localPath: string, fileHash: string) => {
-    const form = new FormData();
-    form.append("file", file);
-    form.append("local_path", localPath);
-    form.append("file_hash", fileHash);
+  ingest: async (file: File, localPath: string, fileHash: string) => {
+    const { body, contentType } = await buildMultipart(file, { local_path: localPath, file_hash: fileHash });
     return req<{ data: { local_path: string; file_name: string; chunks: number; file_hash: string }; message?: string }>(
-      "/files/local/ingest", { method: "POST", body: form }
+      "/files/local/ingest", { method: "POST", body: body as unknown as BodyInit, headers: { "Content-Type": contentType } }
     );
   },
   list: () => req<{ data: { items: LocalDoc[] } }>("/files/local"),
