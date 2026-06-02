@@ -428,6 +428,33 @@ export const files = {
     }),
 };
 
+// ─── 本地優先知識庫（原檔留本機，只索引向量）────────────────────────────────
+export interface LocalDoc {
+  local_path: string;
+  file_name: string;
+  file_hash: string;
+  chunks: number;
+  indexed_at: string | null;
+}
+export const local = {
+  // 上傳檔案內容做 OCR+embedding；原始位元組過手即丟，只存向量並標記 local_path
+  ingest: (file: File, localPath: string, fileHash: string) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("local_path", localPath);
+    form.append("file_hash", fileHash);
+    return req<{ data: { local_path: string; file_name: string; chunks: number; file_hash: string }; message?: string }>(
+      "/files/local/ingest", { method: "POST", body: form }
+    );
+  },
+  list: () => req<{ data: { items: LocalDoc[] } }>("/files/local"),
+  hashes: () => req<{ data: { hashes: Record<string, string> } }>("/files/local/hashes"),
+  remove: (localPath: string) =>
+    req<{ data: { local_path: string }; message?: string }>("/files/local", {
+      method: "DELETE", body: JSON.stringify({ local_path: localPath }),
+    }),
+};
+
 export const API_BASE = BASE;
 
 // ─── LLM Wiki 條目（後端：file 服務 /wiki/*）────────────────────────────────

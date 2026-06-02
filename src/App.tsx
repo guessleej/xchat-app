@@ -1230,7 +1230,7 @@ export default function App() {
                 <button className="msg__action-btn"
                   style={{ textDecoration: "none", cursor: "pointer" }}
                   onClick={() => downloadFile(
-                    `${import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/v1"}${lastResult.downloadUrl.replace("/api/v1", "")}`,
+                    `${import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/v1"}${(lastResult.downloadUrl ?? "").replace("/api/v1", "")}`,
                     lastResult.downloadName || "download",
                   ).catch((e) => uiAlert("下載失敗：" + String(e)))}>
                   下載
@@ -1326,7 +1326,7 @@ export default function App() {
                 {preview.downloadUrl && (
                   <button
                     onClick={() => downloadFile(
-                      `${import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/v1"}${preview.downloadUrl.replace("/api/v1", "")}`,
+                      `${import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/v1"}${(preview.downloadUrl ?? "").replace("/api/v1", "")}`,
                       preview.downloadName || "presentation.pptx",
                     ).catch((e) => uiAlert("下載失敗：" + String(e)))}
                     style={{

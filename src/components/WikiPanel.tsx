@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Dropdown } from "./Dropdown";
+import LocalKBPanel from "./LocalKBPanel";
+import { isTauri } from "../lib/local-kb";
 import {
   wiki,
   files,
@@ -36,6 +38,7 @@ export default function WikiPanel({ onClose }: Props) {
   const askConfirm = (title: string) => new Promise<boolean>((resolve) => setModal({ title, isPrompt: false, value: "", resolve: (v) => resolve(v !== null) }));
   const [reloadKey, setReloadKey] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
 
@@ -213,6 +216,14 @@ export default function WikiPanel({ onClose }: Props) {
                 border: "none", cursor: uploading ? "wait" : "pointer", opacity: uploading ? 0.6 : 1 }}
               title={`上傳檔案並整理進「${currentNB}」知識庫`}
             >{uploading ? "整理中…" : "＋ 上傳檔案"}</button>
+            {isTauri() && (
+              <button onClick={() => setLocalOpen(true)}
+                style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6,
+                  background: "transparent", color: "var(--accent, #4f8cff)",
+                  border: "1px solid var(--accent, #4f8cff)", cursor: "pointer" }}
+                title="管理本機資料夾知識庫（檔案留在你電腦，只索引內容）"
+              >📁 本機資料夾</button>
+            )}
             <button onClick={onExport} disabled={pages.length === 0}
               style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6,
                 background: "transparent", color: "var(--text2, #ccc)",
@@ -426,6 +437,7 @@ export default function WikiPanel({ onClose }: Props) {
           </div>
         </div>
       )}
+      {localOpen && <LocalKBPanel onClose={() => setLocalOpen(false)} />}
     </div>
   );
 }

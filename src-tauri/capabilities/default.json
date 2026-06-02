@@ -19,6 +19,17 @@
     "dialog:default",
     "fs:default",
     "fs:allow-download-write-recursive",
+    "fs:allow-read-file",
+    "fs:allow-read-text-file",
+    "fs:allow-read-dir",
+    "fs:allow-stat",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$HOME" },
+        { "path": "$HOME/**" }
+      ]
+    },
     "http:default",
     "http:allow-fetch",
     "os:default",
