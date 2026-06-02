@@ -65,15 +65,23 @@ export default function WikiPanel({ onClose }: Props) {
       .finally(() => setLoadingList(false));
   }, [currentNB, reloadKey]);
 
-  // ─── 載入單頁詳情
+  // ─── 載入單頁詳情（只依 selectedSlug；切 notebook 時 slug 已被清空，
+  //     避免用「舊 slug + 新 notebook」去查造成 404）
   useEffect(() => {
     if (!selectedSlug) { setDetail(null); return; }
     setLoadingDetail(true);
+    let cancelled = false;
     wiki.get(selectedSlug, currentNB)
-      .then((res) => setDetail(res.data))
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoadingDetail(false));
-  }, [selectedSlug, currentNB]);
+      .then((res) => { if (!cancelled) setDetail(res.data); })
+      .catch((e) => {
+        if (cancelled) return;
+        // notebook 切換殘留的舊 slug → 靜默清除，不顯示錯誤橫幅
+        if (String(e).includes("404")) { setDetail(null); setSelectedSlug(null); }
+        else setError(String(e));
+      })
+      .finally(() => { if (!cancelled) setLoadingDetail(false); });
+    return () => { cancelled = true; };
+  }, [selectedSlug]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = pages.filter((p) => {
     if (!filter.trim()) return true;
