@@ -7,6 +7,7 @@ import {
   type WikiLintReport,
   type NotebookSummary,
   API_BASE,
+  downloadFile,
 } from "../api";
 
 interface Props { onClose: () => void }
@@ -121,17 +122,9 @@ export default function WikiPanel({ onClose }: Props) {
 
   const onExport = async () => {
     try {
-      const token = localStorage.getItem("token") || "";
       const url = `${API_BASE}/files/wiki/export${currentNB !== "default" ? `?notebook=${encodeURIComponent(currentNB)}` : ""}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const dl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = dl;
-      a.download = `xchat-wiki-${currentNB}-${new Date().toISOString().slice(0, 10)}.zip`;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(dl);
+      const fname = `xchat-wiki-${currentNB}-${new Date().toISOString().slice(0, 10)}.zip`;
+      await downloadFile(url, fname);  // Tauri 原生存檔／web a.click
     } catch (e) { setError("匯出失敗：" + String(e)); }
   };
 

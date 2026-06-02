@@ -2,13 +2,14 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import {
   streamChat, streamResearch, streamAgent, streamComputer, streamDynamicAgent,
-  tools, files, auth, type SSECallback,
+  tools, files, auth, downloadFile, type SSECallback,
 } from "./api";
 import { useChatStore } from "./store/chatStore";
 import { useUIStore } from "./store/uiStore";
 import { db } from "./store/db";
 import { MarkdownRenderer } from "./components/MarkdownRenderer";
 import { Dropdown } from "./components/Dropdown";
+import { DialogHost, uiAlert, uiConfirm } from "./components/Dialog";
 import WikiPanel from "./components/WikiPanel";
 import { useProviderStore } from "./store/providerStore";
 import { SEARCH_DEPTHS, SEARCH_MODES, SEARCH_RECENCIES, useSearchStore } from "./store/searchStore";
@@ -432,13 +433,13 @@ export default function App() {
     const text = input.trim();
     if (!text && imageAttachments.length === 0 && fileAttachments.length === 0) return;
     if (activeTool === "agent" && selectedAgents.length === 0) {
-      alert("請至少選擇一個 Agent 角色。");
+      uiAlert("請至少選擇一個 Agent 角色。");
       return;
     }
     // 全域：一次只能執行一個任務
     if (useUIStore.getState().activeTask) {
       const at = useUIStore.getState().activeTask!;
-      const ok = confirm(`另一個任務正在執行中（${at.label}）。\n\n按「確定」強制停止它並開始新任務，按「取消」放棄這次送出。`);
+      const ok = await uiConfirm(`另一個任務正在執行中（${at.label}）。\n\n按「確定」強制停止它並開始新任務，按「取消」放棄這次送出。`);
       if (!ok) return;
       abortRef.current?.abort();
       if (pollStopRef.current) { pollStopRef.current(); pollStopRef.current = null; }
@@ -855,6 +856,7 @@ export default function App() {
 
   return (
     <div className="app" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      <DialogHost />
       {/* macOS: drag region（最頂層，跨全寬） */}
       <div className="titlebar-drag-region" />
 
@@ -1009,7 +1011,7 @@ export default function App() {
                 <div className="sidebar__user-menu-item"
                   onClick={() => {
                     setUserMenuOpen(false);
-                    alert("xChat\n\n由云碩科技 xCloudinfo 製作優化");
+                    uiAlert("xChat\n\n由云碩科技 xCloudinfo 製作優化");
                   }}>關於 xChat</div>
                 <div className="sidebar__user-menu-divider" />
                 <div className="sidebar__user-menu-item sidebar__user-menu-item--danger"
@@ -1225,12 +1227,14 @@ export default function App() {
                 </button>
               )}
               {lastResult.downloadUrl && (
-                <a className="msg__action-btn"
-                  href={`${import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/v1"}${lastResult.downloadUrl.replace("/api/v1", "")}${lastResult.downloadName ? `?name=${encodeURIComponent(lastResult.downloadName)}` : ""}`}
-                  download={lastResult.downloadName || "download"}
-                  style={{ textDecoration: "none" }}>
+                <button className="msg__action-btn"
+                  style={{ textDecoration: "none", cursor: "pointer" }}
+                  onClick={() => downloadFile(
+                    `${import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/v1"}${lastResult.downloadUrl.replace("/api/v1", "")}`,
+                    lastResult.downloadName || "download",
+                  ).catch((e) => uiAlert("下載失敗：" + String(e)))}>
                   下載
-                </a>
+                </button>
               )}
             </div>
           )}
@@ -1320,14 +1324,16 @@ export default function App() {
               <span>預覽</span>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 {preview.downloadUrl && (
-                  <a
-                    href={`${import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/v1"}${preview.downloadUrl.replace("/api/v1", "")}${preview.downloadName ? `?name=${encodeURIComponent(preview.downloadName)}` : ""}`}
-                    download={preview.downloadName || "presentation.pptx"}
+                  <button
+                    onClick={() => downloadFile(
+                      `${import.meta.env.VITE_API_URL ?? "http://localhost:8080/api/v1"}${preview.downloadUrl.replace("/api/v1", "")}`,
+                      preview.downloadName || "presentation.pptx",
+                    ).catch((e) => uiAlert("下載失敗：" + String(e)))}
                     style={{
-                      background: "#4CAF50", color: "#fff", padding: "4px 12px",
-                      borderRadius: 6, fontSize: 13, fontWeight: 600, textDecoration: "none"
+                      background: "#4CAF50", color: "#fff", padding: "4px 12px", border: "none",
+                      borderRadius: 6, fontSize: 13, fontWeight: 600, textDecoration: "none", cursor: "pointer"
                     }}
-                  >下載 PPTX</a>
+                  >下載 PPTX</button>
                 )}
                 <button className="preview__close" onClick={() => setPreview(null)}>✕</button>
               </div>

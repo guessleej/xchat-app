@@ -33,6 +33,7 @@ export function installXchatAPI(): void {
     onUpdateReady: () => () => {},
     downloadUpdate: () => {},
     installUpdate: () => {},
+    saveBlob: async () => false,
   };
   (window as any).xchatAPI = fallback;
 
@@ -118,6 +119,17 @@ async function loadRealAPI() {
         await shellOpen(url);
       } catch (e) {
         console.error("openExternal:", e);
+      }
+    },
+    // 把位元組存到「下載」資料夾（WKWebView 不支援 <a download>/blob 下載）
+    saveBlob: async (filename: string, data: ArrayBuffer): Promise<boolean> => {
+      try {
+        const { writeFile, BaseDirectory } = await import("@tauri-apps/plugin-fs");
+        await writeFile(filename, new Uint8Array(data), { baseDir: BaseDirectory.Download });
+        return true;
+      } catch (e) {
+        console.error("saveBlob:", e);
+        return false;
       }
     },
     getTheme: async (): Promise<Theme> => {

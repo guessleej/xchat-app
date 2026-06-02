@@ -62,8 +62,9 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
     } catch {}
     localStorage.removeItem("token");
     localStorage.removeItem("refresh_token");
-    // Electron (file://) 不能用 href 跳轉，改發事件讓 React 處理
-    if (window.location.protocol === "file:") {
+    // Tauri/Electron（file:// 或 tauri://）不能用 href 跳轉到 /login（打包版無此路由）
+    // → 改發事件讓 React 切回登入畫面；只有真正的 web 才用 location.href
+    if (window.location.protocol === "file:" || "__TAURI_INTERNALS__" in window) {
       window.dispatchEvent(new CustomEvent("xchat:logout"));
     } else {
       window.location.href = "/login";
@@ -86,6 +87,29 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
 // ─── 模型（伺服器集中管理；前端只顯示品牌化名稱，不碰端點/金鑰）──────────────
 export interface ModelInfo { id: string; label: string; description?: string; default?: boolean }
 export const models = () => req<{ data: ModelInfo[] }>("/chat/models").then((r) => r.data);
+
+// ─── 下載檔案 ───────────────────────────────────────────────────────────────
+// WKWebView 不支援 <a download>/blob 下載 → Tauri 改用原生存檔(寫下載資料夾)；web 用 a.click。
+// 一律帶上 token（未授權端點忽略即可）。
+export async function downloadFile(url: string, filename: string): Promise<void> {
+  const tok = await getValidToken();
+  const res = await fetch(url, tok ? { headers: { Authorization: `Bearer ${tok}` } } : {});
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  if (isTauri) {
+    const buf = await res.arrayBuffer();
+    const ok = await (window as { xchatAPI?: { saveBlob?: (n: string, d: ArrayBuffer) => Promise<boolean> } }).xchatAPI?.saveBlob?.(filename, buf);
+    if (!ok) throw new Error("存檔已取消或失敗");
+    (window as { xchatAPI?: { toastNotify?: (t: string, b: string) => void } }).xchatAPI?.toastNotify?.("下載完成", `${filename} 已存到「下載」資料夾`);
+  } else {
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(href);
+  }
+}
 
 export const auth = {
   login: async (email: string, password: string) => {
