@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { files, type KBFile } from "../api";
+import { files, type KBFile, type FileChunk } from "../api";
 import { uiConfirm, uiAlert } from "./Dialog";
 
 interface Props { onClose: () => void }
@@ -22,6 +22,8 @@ export default function KBFilesPanel({ onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // 切片檢視
+  const [chunkView, setChunkView] = useState<null | { file: KBFile; chunks: FileChunk[]; loading: boolean }>(null);
 
   const reload = useCallback(async () => {
     setLoading(true); setError(""); setSel(new Set());
@@ -57,6 +59,17 @@ export default function KBFilesPanel({ onClose }: Props) {
     finally { setBusy(false); }
   };
 
+  const openChunks = async (f: KBFile) => {
+    setChunkView({ file: f, chunks: [], loading: true });
+    try {
+      const res = await files.chunks(f.file_id);
+      setChunkView({ file: f, chunks: res.data.chunks || [], loading: false });
+    } catch (e) {
+      setChunkView(null);
+      await uiAlert("讀取切片失敗：" + String(e));
+    }
+  };
+
   const btn = (bg: string, color = "#fff"): React.CSSProperties => ({
     fontSize: 12, padding: "6px 12px", borderRadius: 6,
     background: bg, color, border: bg === "transparent" ? "1px solid var(--border, #555)" : "none",
@@ -64,6 +77,7 @@ export default function KBFilesPanel({ onClose }: Props) {
   });
 
   return (
+   <>
     <div onClick={onClose} style={{
       position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
       zIndex: 1001, display: "flex", alignItems: "center", justifyContent: "center",
@@ -138,9 +152,11 @@ export default function KBFilesPanel({ onClose }: Props) {
                     <td style={{ padding: "8px 6px", color: "var(--text3, #888)", fontSize: 12 }}>
                       {f.uploaded_at ? new Date(f.uploaded_at).toLocaleString() : "—"}
                     </td>
-                    <td style={{ padding: "8px 6px", textAlign: "right" }}>
+                    <td style={{ padding: "8px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
+                      <button onClick={() => openChunks(f)} disabled={busy}
+                        style={{ ...btn("transparent", "var(--accent, #4f8cff)"), padding: "4px 8px" }}>切片</button>
                       <button onClick={() => doDelete([f.file_id])} disabled={busy}
-                        style={{ ...btn("transparent", "var(--red, #e8192c)"), padding: "4px 8px" }}>刪除</button>
+                        style={{ ...btn("transparent", "var(--red, #e8192c)"), padding: "4px 8px", marginLeft: 6 }}>刪除</button>
                     </td>
                   </tr>
                 ))}
@@ -150,5 +166,51 @@ export default function KBFilesPanel({ onClose }: Props) {
         </div>
       </div>
     </div>
+
+    {/* 切片檢視 */}
+    {chunkView && (
+      <div onClick={() => setChunkView(null)} style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+        zIndex: 1002, display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          background: "var(--bg2, #1a1a1a)", color: "var(--text, #eee)",
+          borderRadius: 12, width: "min(820px, 90vw)", height: "80vh",
+          display: "flex", flexDirection: "column", overflow: "hidden",
+          border: "1px solid var(--border, #333)", boxShadow: "0 12px 48px rgba(0,0,0,0.5)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid var(--border, #333)", gap: 10 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, wordBreak: "break-all" }}>切片內容：{chunkView.file.file_name}</div>
+              <div style={{ fontSize: 11, color: "var(--text3, #888)" }}>
+                {chunkView.loading ? "載入中…" : `共 ${chunkView.chunks.length} 段（這就是 AI 實際檢索的內容；圖片＝視覺描述）`}
+              </div>
+            </div>
+            <button onClick={() => setChunkView(null)} style={{ background: "transparent", border: "none", color: "var(--text2, #ccc)", fontSize: 22, cursor: "pointer", padding: "0 6px" }}>×</button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+            {chunkView.loading ? (
+              <div style={{ color: "var(--text3, #888)", padding: 16 }}>載入中…</div>
+            ) : chunkView.chunks.length === 0 ? (
+              <div style={{ color: "var(--text3, #888)", padding: 16, lineHeight: 1.8 }}>
+                這個檔案沒有任何切片。<br />（可能是圖片視覺描述失敗、或抽取不到文字。重新上傳可再試一次。）
+              </div>
+            ) : (
+              chunkView.chunks.map((c) => (
+                <div key={c.chunk_idx} style={{ marginBottom: 12, border: "1px solid var(--border, #2a2a2a)", borderRadius: 8, overflow: "hidden" }}>
+                  <div style={{ fontSize: 11, color: "var(--text3, #888)", padding: "4px 10px", background: "var(--bg3, #2a2a2a)" }}>
+                    片段 #{c.chunk_idx}（{c.content.length} 字）
+                  </div>
+                  <div style={{ padding: "8px 10px", fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    {c.content}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+   </>
   );
 }

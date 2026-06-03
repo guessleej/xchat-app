@@ -454,7 +454,18 @@ export const files = {
   batchDelete: (fileIds: string[]) =>
     req<{ data: { deleted: string[]; missing: string[]; count: number }; message?: string }>(
       "/files/files/batch-delete", { method: "POST", body: JSON.stringify({ file_ids: fileIds }) }),
+  // 檢視某檔實際入庫的切片內容（圖片=視覺描述/OCR）
+  chunks: (fileId: string) =>
+    req<{ data: { file_id: string; file_name: string; mime_type?: string; chunk_count: number; chunks: FileChunk[]; extracted_text?: string } }>(
+      `/files/files/${fileId}/chunks`),
 };
+
+export interface FileChunk {
+  chunk_idx: number;
+  content: string;
+  source_type?: string;
+  local_path?: string | null;
+}
 
 export interface KBFile {
   file_id: string;
