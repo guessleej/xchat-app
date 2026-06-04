@@ -661,11 +661,14 @@ export default function App() {
             stop();
             pollStopRef.current = null;
             const r = result.result as Record<string, string>;
-            const dlUrl = activeTool === "ppt" ? `/api/v1/tools/download/${data.task_id}` : undefined;
-            const safePrompt = text.replace(/[\\/:*?"<>|]/g, "_").trim().slice(0, 60) || "簡報";
-            const dlName = activeTool === "ppt" ? `${safePrompt}.pptx` : undefined;
+            const hasDownload = activeTool === "ppt" || activeTool === "document";
+            const dlUrl = hasDownload ? `/api/v1/tools/download/${data.task_id}` : undefined;
+            const safePrompt = text.replace(/[\\/:*?"<>|]/g, "_").trim().slice(0, 60) || "文件";
+            const dlName = activeTool === "ppt" ? `${safePrompt}.pptx`
+              : activeTool === "document" ? `${safePrompt}.docx` : undefined;
             const finalContent = `正在生成 ${activeTool.toUpperCase()}，請稍候...\n${activeTool.toUpperCase()} 已生成完成。`;
-            const body = !dlUrl ? (r?.markdown || r?.csv || r?.code || r?.preview_html || "") : "";
+            // 簡報用 preview_html 預覽（不放內文）；文檔/表格/程式碼仍顯示內文，且文檔同時可下載 .docx
+            const body = activeTool === "ppt" ? "" : (r?.markdown || r?.csv || r?.code || r?.preview_html || "");
             const wrappedBody = body ? (activeTool === "code" ? `\n\n\`\`\`\n${body}\n\`\`\``
               : activeTool === "table" ? `\n\n\`\`\`csv\n${body}\n\`\`\`` : `\n\n${body}`) : "";
             // 把完整 AI 訊息（含結果）寫入原始對話的 DB
