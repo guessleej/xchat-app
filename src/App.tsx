@@ -503,19 +503,36 @@ export default function App() {
     setImageAttachments([]);
     setFileAttachments([]);
 
-    // 並行上傳所有檔案附件（不再 1 個 1 個等）
+    // 並行上傳附件（防呆：逾時 60s + 失敗自動重試一次；任一最終失敗 → 提示+保留附件+中止送出）
     let fileContextText = "";
     if (pendingFiles.length > 0) {
-      const uploads = await Promise.allSettled(pendingFiles.map((fa) => files.upload(fa.file)));
-      uploads.forEach((r, i) => {
-        const fa = pendingFiles[i];
+      setTaskStatus("上傳檔案中…");
+      const withTimeout = <T,>(p: Promise<T>, ms = 60000) =>
+        Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("上傳逾時")), ms))]);
+      const uploadOne = async (fa: typeof pendingFiles[number]) => {
+        try { return await withTimeout(files.upload(fa.file)); }
+        catch { return await withTimeout(files.upload(fa.file)); } // 重試一次
+      };
+      const results = await Promise.allSettled(pendingFiles.map(uploadOne));
+      const failed: typeof pendingFiles = [];
+      results.forEach((r, i) => {
         if (r.status === "fulfilled") {
           const d = r.value.data;
           fileContextText += `\n\n[檔案] ${d.file_name} 內容：\n${d.extracted_text}`;
         } else {
-          fileContextText += `\n\n[檔案] ${fa.name}（上傳失敗：${(r.reason as Error).message}）`;
+          failed.push(pendingFiles[i]);
         }
       });
+      if (failed.length > 0) {
+        // 失敗 → 還原附件與輸入、解除 loading，明確提示而非送出誤導訊息
+        setFileAttachments((prev) => [...failed, ...prev]);
+        if (imgs.length) setImageAttachments((prev) => [...imgs, ...prev]);
+        setInput(text);
+        setLoading(false);
+        setTaskStatus("");
+        await uiAlert(`以下檔案上傳失敗（已重試），請稍後再試：\n${failed.map((f) => f.name).join("\n")}`);
+        return;
+      }
     }
     const finalText = text + fileContextText;
 
