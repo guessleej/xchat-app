@@ -822,7 +822,14 @@ export default function App() {
   // ── 訊息條目（useCallback 穩定引用，供 Virtuoso 使用）──────────────────────
   const MessageItem = useCallback((_index: number, msg: typeof messages[0]) => (
     <div key={msg.id} className={`msg msg--${msg.role}`}>
-      <div className="msg__who">{msg.role === "assistant" ? "xChat" : "你"}</div>
+      <div className="msg__who">
+        {msg.role === "assistant" ? "xChat" : "你"}
+        {msg.timestamp ? (
+          <span className="msg__time" style={{ marginLeft: 8, fontSize: 11, color: "var(--text3, #888)", fontWeight: 400 }}>
+            {new Date(msg.timestamp).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
+          </span>
+        ) : null}
+      </div>
       <div className="msg__bubble">
         {msg.images && msg.images.length > 0 && (
           <div className="msg__images">
