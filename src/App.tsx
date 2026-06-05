@@ -928,36 +928,52 @@ export default function App() {
             <kbd>⌘X</kbd>
           </button>
 
-          {/* 知識庫 */}
-          <button
-            className="sidebar__item"
-            onClick={() => setWikiOpen(true)}
-            title="瀏覽已整理的條目（LLM Wiki）"
-          >
-            <span>知識庫</span>
-          </button>
-
-          {/* 排程（Work） */}
-          <button
-            className="sidebar__item"
-            onClick={() => setScheduleOpen(true)}
-            title="定時任務（7×24 自動執行）"
-          >
-            <span>排程</span>
-          </button>
-
-          {/* 工具列 */}
+          {/* ── 工作區（Work）：企業協作能力 ───────────────────────── */}
+          <div className="sidebar__group-label">工作區</div>
           <nav className="sidebar__nav">
-            {TOOLS.slice(1).map((t) => (
-              <button key={t.id}
-                className={`sidebar__item ${(activeTool === t.id || (t.id === "doc" && ["ppt","website","document","research","table"].includes(activeTool as string))) ? "active" : ""}`}
-                onClick={() => {
-                  // 「文件」這個外層項目點下去 → 預設用 document 子類型
-                  startToolSession((t.id === "doc" ? "document" : t.id) as ToolId);
-                }}>
-                <span>{t.label}</span>
-              </button>
-            ))}
+            <button className="sidebar__item" onClick={() => setWikiOpen(true)}
+              title="知識庫：上傳/本機資料夾/條目（含圖片·影片·Office 文件檢索）">
+              <span>📚 知識庫</span>
+            </button>
+            <button className="sidebar__item" onClick={() => setScheduleOpen(true)}
+              title="排程：7×24 定時任務（LLM/產 Office/腳本）">
+              <span>🕒 排程</span>
+            </button>
+            <button className={`sidebar__item ${activeTool === "agent" ? "active" : ""}`}
+              onClick={() => startToolSession("agent" as ToolId)}
+              title="多智能體協作">
+              <span>🤖 Agents</span>
+            </button>
+            <button className={`sidebar__item ${activeTool === "computer" ? "active" : ""}`}
+              onClick={() => startToolSession("computer" as ToolId)}
+              title="桌面/瀏覽器控制">
+              <span>🖥 桌面控制</span>
+            </button>
+          </nav>
+
+          {/* ── 製作：內容產出 ───────────────────────────────────── */}
+          <div className="sidebar__group-label">製作</div>
+          <nav className="sidebar__nav">
+            <button className={`sidebar__item ${["ppt","website","document","table"].includes(activeTool as string) ? "active" : ""}`}
+              onClick={() => startToolSession("document" as ToolId)}
+              title="文件／簡報／網站／表格（可下載 Word·PPT·Excel）">
+              <span>📄 文件 / 簡報 / 表格</span>
+            </button>
+            <button className={`sidebar__item ${activeTool === "code" ? "active" : ""}`}
+              onClick={() => startToolSession("code" as ToolId)}
+              title="程式碼產生">
+              <span>{"</> 程式"}</span>
+            </button>
+          </nav>
+
+          {/* ── 資料 ─────────────────────────────────────────────── */}
+          <div className="sidebar__group-label">資料</div>
+          <nav className="sidebar__nav">
+            <button className={`sidebar__item ${activeTool === "file" ? "active" : ""}`}
+              onClick={() => startToolSession("file" as ToolId)}
+              title="上傳檔案">
+              <span>📎 檔案上傳</span>
+            </button>
           </nav>
 
           {/* 把空間推到底（功能跟歷史紀錄分隔線下移）*/}
