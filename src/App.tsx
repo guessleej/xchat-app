@@ -661,11 +661,12 @@ export default function App() {
             stop();
             pollStopRef.current = null;
             const r = result.result as Record<string, string>;
-            const hasDownload = activeTool === "ppt" || activeTool === "document";
+            const hasDownload = activeTool === "ppt" || activeTool === "document" || activeTool === "table";
             const dlUrl = hasDownload ? `/api/v1/tools/download/${data.task_id}` : undefined;
             const safePrompt = text.replace(/[\\/:*?"<>|]/g, "_").trim().slice(0, 60) || "文件";
             const dlName = activeTool === "ppt" ? `${safePrompt}.pptx`
-              : activeTool === "document" ? `${safePrompt}.docx` : undefined;
+              : activeTool === "document" ? `${safePrompt}.docx`
+              : activeTool === "table" ? `${safePrompt}.xlsx` : undefined;
             const finalContent = `正在生成 ${activeTool.toUpperCase()}，請稍候...\n${activeTool.toUpperCase()} 已生成完成。`;
             // 簡報用 preview_html 預覽（不放內文）；文檔/表格/程式碼仍顯示內文，且文檔同時可下載 .docx
             const body = activeTool === "ppt" ? "" : (r?.markdown || r?.csv || r?.code || r?.preview_html || "");
