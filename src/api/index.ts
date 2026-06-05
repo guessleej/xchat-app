@@ -540,6 +540,12 @@ export const scheduler = {
     req<{ data: { marked: number } }>("/scheduler/runs/read", { method: "POST", body: JSON.stringify(runIds ? { run_ids: runIds } : {}) }),
 };
 
+// ─── Agent 動作前批准 ───────────────────────────────────────────────────────
+export const agents = {
+  approve: (approvalId: string, approved: boolean) =>
+    req<{ data: { matched: boolean } }>("/agents/approve", { method: "POST", body: JSON.stringify({ approval_id: approvalId, approved }) }),
+};
+
 export const API_BASE = BASE;
 
 // ─── LLM Wiki 條目（後端：file 服務 /wiki/*）────────────────────────────────

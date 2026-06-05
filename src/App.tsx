@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import {
   streamChat, streamResearch, streamAgent, streamComputer, streamDynamicAgent,
-  tools, files, auth, downloadFile, scheduler, type SSECallback,
+  tools, files, auth, downloadFile, scheduler, agents, type SSECallback,
 } from "./api";
 import { useChatStore } from "./store/chatStore";
 import { useUIStore } from "./store/uiStore";
@@ -617,6 +617,17 @@ export default function App() {
         }
         else if (t === "agent_tool") {
           setDynAgents(prev => prev.map(a => a.id === e.id ? { ...a, tool: e.tool as string } : a));
+        }
+        else if (t === "approval_request") {
+          // 動作前批准：Agent 想跑危險動作(程式碼)，跳出讓使用者批准/拒絕
+          const approvalId = e.approval_id as string;
+          const preview = (e.preview as string) || "";
+          setTaskStatus("等待批准執行程式碼…");
+          uiConfirm(`⚠️ Agent 要求執行程式碼（${e.tool}），是否批准？\n\n${preview.slice(0, 1200)}`)
+            .then((ok) => agents.approve(approvalId, ok).catch(() => {}));
+        }
+        else if (t === "approval_resolved") {
+          if (!e.approved) bufAppend(`\n> ⛔ 已拒絕一項程式碼執行\n`);
         }
         else if (t === "agent_done") {
           setDynAgents(prev => prev.map(a => a.id === e.id ? { ...a, status: "done", tool: undefined } : a));
