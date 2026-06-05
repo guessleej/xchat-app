@@ -159,9 +159,22 @@ body {
   .sidebar { padding-top: calc(env(titlebar-area-height, 28px) + 8px); }
 }
 
+.sidebar__brand {
+  display: flex; align-items: center; gap: 11px; margin-bottom: 14px; padding: 2px;
+}
 .sidebar__logo {
-  width: 56px; height: 56px;
-  border-radius: 12px; margin-bottom: 12px; display: block;
+  width: 40px; height: 40px;
+  border-radius: 10px; display: block; flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,.18);
+}
+.sidebar__brand-text { display: flex; flex-direction: column; min-width: 0; }
+.sidebar__brand-name {
+  font-size: 19px; font-weight: 700; letter-spacing: .01em;
+  color: var(--text); line-height: 1.1;
+}
+.sidebar__brand-sub {
+  font-size: 11px; color: var(--text3); margin-top: 3px;
+  letter-spacing: .04em; white-space: nowrap;
 }
 
 /* Sidebar header */

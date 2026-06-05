@@ -957,7 +957,13 @@ export default function App() {
 
         {/* ── 側邊欄 ─────────────────────────────────────────────────────── */}
         <aside className={`sidebar ${sidebarOpen ? "" : "sidebar--collapsed"}`}>
-          <img src={XChatLogo} alt="xChat" className="sidebar__logo" />
+          <div className="sidebar__brand">
+            <img src={XChatLogo} alt="xChat" className="sidebar__logo" />
+            <div className="sidebar__brand-text">
+              <div className="sidebar__brand-name">xChat</div>
+              <div className="sidebar__brand-sub">云碩 AI 工作站</div>
+            </div>
+          </div>
 
           <button className="sidebar__new" onClick={handleNewConversation}>
             <span className="sidebar__new-icon"></span>
