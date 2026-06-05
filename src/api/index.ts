@@ -506,7 +506,7 @@ export interface ScheduledTask {
   task_id: string;
   name: string;
   cron_expr: string;
-  action_type: "prompt" | "script";
+  action_type: "prompt" | "script" | "office";
   payload: Record<string, unknown>;
   enabled: boolean;
   next_run: string | null;

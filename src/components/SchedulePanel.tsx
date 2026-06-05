@@ -44,11 +44,12 @@ export default function SchedulePanel({ onClose }: Props) {
   const [weekday, setWeekday] = useState(1);
   const [everyN, setEveryN] = useState(30);
   const [rawCron, setRawCron] = useState("0 8 * * *");
-  const [action, setAction] = useState<"prompt" | "script">("prompt");
+  const [action, setAction] = useState<"prompt" | "script" | "office">("prompt");
   const [prompt, setPrompt] = useState("");
   const [useKnowledge, setUseKnowledge] = useState(false);
   const [lang, setLang] = useState<"python" | "bash">("python");
   const [code, setCode] = useState("");
+  const [officeType, setOfficeType] = useState<"ppt" | "document" | "table">("document");
 
   const reload = useCallback(async () => {
     setLoading(true); setError("");
@@ -69,8 +70,10 @@ export default function SchedulePanel({ onClose }: Props) {
     const cron_expr = buildCron(mode, hhmm, weekday, everyN, rawCron);
     const payload = action === "prompt"
       ? { prompt, use_knowledge: useKnowledge }
+      : action === "office"
+      ? { tool_type: officeType, prompt }
       : { language: lang, code };
-    if (action === "prompt" && !prompt.trim()) { await uiAlert("請輸入提示內容"); return; }
+    if ((action === "prompt" || action === "office") && !prompt.trim()) { await uiAlert("請輸入內容"); return; }
     if (action === "script" && !code.trim()) { await uiAlert("請輸入腳本內容"); return; }
     setBusy(true); setError("");
     try {
@@ -148,10 +151,20 @@ export default function SchedulePanel({ onClose }: Props) {
               <div style={{ fontSize: 12, color: "var(--text3,#888)", marginBottom: 4 }}>動作</div>
               <div style={{ display: "flex", gap: 6 }}>
                 <button onClick={() => setAction("prompt")} style={seg(action === "prompt")}>LLM 提問</button>
+                <button onClick={() => setAction("office")} style={seg(action === "office")}>產 Office 檔</button>
                 <button onClick={() => setAction("script")} style={seg(action === "script")}>腳本</button>
               </div>
             </div>
-            {action === "prompt" ? (
+            {action === "office" ? (
+              <>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => setOfficeType("ppt")} style={seg(officeType === "ppt")}>簡報 PPT</button>
+                  <button onClick={() => setOfficeType("document")} style={seg(officeType === "document")}>Word</button>
+                  <button onClick={() => setOfficeType("table")} style={seg(officeType === "table")}>Excel</button>
+                </div>
+                <textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} placeholder="要定時產生什麼（例：每週一產出上週進度週報）" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+              </>
+            ) : action === "prompt" ? (
               <>
                 <textarea style={{ ...inp, minHeight: 70, resize: "vertical" }} placeholder="要 AI 定時做什麼（例：整理今天知識庫新增的重點，條列三點）" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
                 <label style={{ fontSize: 12, color: "var(--text2,#ccc)", display: "flex", gap: 6, alignItems: "center" }}>
@@ -190,7 +203,7 @@ export default function SchedulePanel({ onClose }: Props) {
                   <tr key={t.task_id} style={{ borderBottom: "1px solid var(--border,#2a2a2a)" }}>
                     <td style={{ padding: "8px 6px", fontWeight: 500 }}>{t.name}</td>
                     <td style={{ padding: "8px 6px", color: "var(--text2,#ccc)" }}>{cronHuman(t.cron_expr)}</td>
-                    <td style={{ padding: "8px 6px" }}>{t.action_type === "prompt" ? "LLM" : "腳本"}</td>
+                    <td style={{ padding: "8px 6px" }}>{t.action_type === "prompt" ? "LLM" : t.action_type === "office" ? "Office" : "腳本"}</td>
                     <td style={{ padding: "8px 6px" }}><input type="checkbox" checked={t.enabled} onChange={() => toggle(t)} /></td>
                     <td style={{ padding: "8px 6px", fontSize: 11, color: "var(--text3,#888)" }}>
                       {t.next_run ? new Date(t.next_run).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "—"}
