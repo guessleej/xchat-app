@@ -643,6 +643,14 @@ export default function App() {
 
     // Agent（動態多 agent 集群，Kimi K2 風格）
     if (activeTool === "agent") {
+      // 未開「上網」時明顯提示：Agents 離線只能用內部知識，避免拿到過時／查無資料的答案
+      let webForRun = webAccess;
+      if (!webForRun) {
+        const turnOn = await uiConfirm(
+          `⚠️ 目前未開啟「上網」。\n\nAgents 在離線狀態下只能用內部知識，無法查網路，結果可能過時或查無資料（例如查不到「云碩科技」這類最新／特定資訊）。\n\n按「確定」＝開啟上網後再執行（建議）\n按「取消」＝維持離線、直接執行`
+        );
+        if (turnOn) { webForRun = true; setWebAccess(true); }
+      }
       setTaskStatus("啟動 Agents...");
       setDynPlan(null);
       setDynAgents([]);
@@ -729,7 +737,7 @@ export default function App() {
             done();
           }
         }
-      }, abortRef.current.signal, webAccess);
+      }, abortRef.current.signal, webForRun);
       return;
     }
 
@@ -1013,11 +1021,15 @@ export default function App() {
               title="多智能體協作">
               <Ic n="agents" /><span>Agents</span>
             </button>
+            {/* 桌面控制（CUA）暫時隱藏：noVNC 即時預覽 + 視覺模型操作穩定性未達標，先擱置。
+                後端服務與程式碼保留，待 noVNC 顯示與操作可靠度補齊後再開回。 */}
+            {false && (
             <button className={`sidebar__item ${activeTool === "computer" ? "active" : ""}`}
               onClick={() => startToolSession("computer" as ToolId)}
               title="桌面/瀏覽器控制">
               <Ic n="monitor" /><span>桌面控制</span>
             </button>
+            )}
           </nav>
 
           {/* ── 製作：內容產出 ───────────────────────────────────── */}
