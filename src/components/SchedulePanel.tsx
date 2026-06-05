@@ -50,6 +50,8 @@ export default function SchedulePanel({ onClose }: Props) {
   const [lang, setLang] = useState<"python" | "bash">("python");
   const [code, setCode] = useState("");
   const [officeType, setOfficeType] = useState<"ppt" | "document" | "table">("document");
+  const [notify, setNotify] = useState(true);
+  const [postConv, setPostConv] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true); setError("");
@@ -77,7 +79,7 @@ export default function SchedulePanel({ onClose }: Props) {
     if (action === "script" && !code.trim()) { await uiAlert("請輸入腳本內容"); return; }
     setBusy(true); setError("");
     try {
-      await scheduler.create({ name: name.trim(), cron_expr, action_type: action, payload, enabled: true });
+      await scheduler.create({ name: name.trim(), cron_expr, action_type: action, payload, enabled: true, notify, post_to_conv: postConv });
       resetForm(); setShowForm(false); await reload();
     } catch (e) { setError("建立失敗：" + String(e)); }
     finally { setBusy(false); }
@@ -181,6 +183,14 @@ export default function SchedulePanel({ onClose }: Props) {
                 <textarea style={{ ...inp, minHeight: 90, fontFamily: "monospace", resize: "vertical" }} placeholder={lang === "python" ? "print('hello')" : "echo hello"} value={code} onChange={(e) => setCode(e.target.value)} />
               </>
             )}
+            <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--text2,#ccc)" }}>
+              <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} /> 完成後推播通知
+              </label>
+              <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input type="checkbox" checked={postConv} onChange={(e) => setPostConv(e.target.checked)} /> 結果發到「排程結果」對話
+              </label>
+            </div>
             <div><button onClick={submit} disabled={busy} style={{ ...seg(true), background: "var(--accent,#e0121f)", border: "none", padding: "7px 16px" }}>{busy ? "建立中…" : "建立任務"}</button></div>
           </div>
         )}

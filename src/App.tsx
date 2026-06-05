@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import {
   streamChat, streamResearch, streamAgent, streamComputer, streamDynamicAgent,
-  tools, files, auth, downloadFile, type SSECallback,
+  tools, files, auth, downloadFile, scheduler, type SSECallback,
 } from "./api";
 import { useChatStore } from "./store/chatStore";
 import { useUIStore } from "./store/uiStore";
@@ -247,6 +247,25 @@ export default function App() {
     window.addEventListener("xchat:logout", handler);
     return () => window.removeEventListener("xchat:logout", handler);
   }, []);
+
+  // 排程任務未讀結果輪詢 → 推播通知（每 90 秒；登入後才跑）
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let stop = false;
+    const poll = async () => {
+      try {
+        const r = await scheduler.unread();
+        if (stop || !r.data.count) return;
+        const it = r.data.items[0];
+        const more = r.data.count > 1 ? `（共 ${r.data.count} 則）` : "";
+        window.xchatAPI?.toastNotify?.(`排程完成：${it?.task_name ?? ""}${more}`, (it?.preview ?? "").slice(0, 120));
+        await scheduler.markRead();
+      } catch { /* 忽略（未部署/離線） */ }
+    };
+    const t = setInterval(poll, 90000);
+    const first = setTimeout(poll, 8000);
+    return () => { stop = true; clearInterval(t); clearTimeout(first); };
+  }, [isLoggedIn]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);

@@ -524,7 +524,7 @@ export interface ScheduledRun {
 }
 export const scheduler = {
   list: () => req<{ data: { items: ScheduledTask[] } }>("/scheduler/tasks"),
-  create: (t: { name: string; cron_expr: string; action_type: string; payload: Record<string, unknown>; enabled?: boolean }) =>
+  create: (t: { name: string; cron_expr: string; action_type: string; payload: Record<string, unknown>; enabled?: boolean; notify?: boolean; post_to_conv?: boolean }) =>
     req<{ data: ScheduledTask; message?: string }>("/scheduler/tasks", { method: "POST", body: JSON.stringify(t) }),
   update: (taskId: string, patch: Record<string, unknown>) =>
     req<{ data: ScheduledTask; message?: string }>(`/scheduler/tasks/${taskId}`, { method: "PUT", body: JSON.stringify(patch) }),
@@ -534,6 +534,10 @@ export const scheduler = {
     req<{ data: ScheduledRun; message?: string }>(`/scheduler/tasks/${taskId}/run-now`, { method: "POST" }),
   runs: (taskId: string) =>
     req<{ data: { items: ScheduledRun[] } }>(`/scheduler/tasks/${taskId}/runs`),
+  unread: () =>
+    req<{ data: { count: number; items: { run_id: string; task_name: string; status: string; preview: string }[] } }>("/scheduler/unread"),
+  markRead: (runIds?: string[]) =>
+    req<{ data: { marked: number } }>("/scheduler/runs/read", { method: "POST", body: JSON.stringify(runIds ? { run_ids: runIds } : {}) }),
 };
 
 export const API_BASE = BASE;
