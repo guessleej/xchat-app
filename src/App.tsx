@@ -11,6 +11,7 @@ import { MarkdownRenderer } from "./components/MarkdownRenderer";
 import { Dropdown } from "./components/Dropdown";
 import { DialogHost, uiAlert, uiConfirm } from "./components/Dialog";
 import WikiPanel from "./components/WikiPanel";
+import SchedulePanel from "./components/SchedulePanel";
 import { useProviderStore } from "./store/providerStore";
 import { SEARCH_DEPTHS, SEARCH_MODES, SEARCH_RECENCIES, useSearchStore } from "./store/searchStore";
 import { SettingsModal } from "./components/SettingsModal";
@@ -217,6 +218,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [historySearch, setHistorySearch] = useState("");
   const [wikiOpen, setWikiOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const {
     convId, conversations, messages, loading, taskStatus,
@@ -916,6 +918,15 @@ export default function App() {
             <span>知識庫</span>
           </button>
 
+          {/* 排程（Work） */}
+          <button
+            className="sidebar__item"
+            onClick={() => setScheduleOpen(true)}
+            title="定時任務（7×24 自動執行）"
+          >
+            <span>排程</span>
+          </button>
+
           {/* 工具列 */}
           <nav className="sidebar__nav">
             {TOOLS.slice(1).map((t) => (
@@ -1359,6 +1370,7 @@ export default function App() {
         )}
       </div>{/* end .app-body */}
       {wikiOpen && <WikiPanel onClose={() => setWikiOpen(false)} />}
+      {scheduleOpen && <SchedulePanel onClose={() => setScheduleOpen(false)} />}
     </div>
   );
 }

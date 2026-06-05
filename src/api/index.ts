@@ -501,6 +501,41 @@ export const local = {
     }),
 };
 
+// ─── 排程任務（xChat Work — scheduler 服務）────────────────────────────────
+export interface ScheduledTask {
+  task_id: string;
+  name: string;
+  cron_expr: string;
+  action_type: "prompt" | "script";
+  payload: Record<string, unknown>;
+  enabled: boolean;
+  next_run: string | null;
+  last_run: string | null;
+  created_at: string | null;
+}
+export interface ScheduledRun {
+  run_id: string;
+  task_id: string;
+  task_name?: string;
+  started_at: string | null;
+  finished_at: string | null;
+  status: string;
+  output: string;
+}
+export const scheduler = {
+  list: () => req<{ data: { items: ScheduledTask[] } }>("/scheduler/tasks"),
+  create: (t: { name: string; cron_expr: string; action_type: string; payload: Record<string, unknown>; enabled?: boolean }) =>
+    req<{ data: ScheduledTask; message?: string }>("/scheduler/tasks", { method: "POST", body: JSON.stringify(t) }),
+  update: (taskId: string, patch: Record<string, unknown>) =>
+    req<{ data: ScheduledTask; message?: string }>(`/scheduler/tasks/${taskId}`, { method: "PUT", body: JSON.stringify(patch) }),
+  remove: (taskId: string) =>
+    req<{ message?: string }>(`/scheduler/tasks/${taskId}`, { method: "DELETE" }),
+  runNow: (taskId: string) =>
+    req<{ data: ScheduledRun; message?: string }>(`/scheduler/tasks/${taskId}/run-now`, { method: "POST" }),
+  runs: (taskId: string) =>
+    req<{ data: { items: ScheduledRun[] } }>(`/scheduler/tasks/${taskId}/runs`),
+};
+
 export const API_BASE = BASE;
 
 // ─── LLM Wiki 條目（後端：file 服務 /wiki/*）────────────────────────────────
