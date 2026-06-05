@@ -53,6 +53,32 @@ const TOOLS = [
 ] as const;
 type ToolId = (typeof TOOLS)[number]["id"] | "ppt" | "website" | "document" | "research" | "table";
 
+// ── 側邊欄極簡線性 icon（描邊 currentColor，隨主題變色）──────────────────────
+const ICON_PATHS: Record<string, React.ReactNode> = {
+  // 知識庫：書本
+  book: <><path d="M5 4.5h9a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H5z" /><path d="M5 4.5A1.5 1.5 0 0 0 3.5 6v13A1.5 1.5 0 0 1 5 17.5" /></>,
+  // 排程：時鐘
+  clock: <><circle cx="10" cy="10" r="7" /><path d="M10 6.2V10l2.6 1.6" /></>,
+  // Agents：節點群（中心 + 三節點）
+  agents: <><circle cx="10" cy="5" r="2" /><circle cx="5" cy="14" r="2" /><circle cx="15" cy="14" r="2" /><path d="M10 7v3m0 0L6.3 12.6M10 10l3.7 2.6" /></>,
+  // 桌面控制：螢幕
+  monitor: <><rect x="3" y="4" width="14" height="10" rx="1.5" /><path d="M7 17.5h6M10 14.5v3" /></>,
+  // 文件：頁面
+  doc: <><path d="M5 3.5h6l4 4V16a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" /><path d="M11 3.5v4h4M6.5 11h7M6.5 13.5h7" /></>,
+  // 程式：< >
+  code: <><path d="M7 6.5 3.5 10 7 13.5M13 6.5 16.5 10 13 13.5" /></>,
+  // 檔案上傳：上傳
+  upload: <><path d="M4 13v3.5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V13" /><path d="M10 3.5V13M6.5 7 10 3.5 13.5 7" /></>,
+};
+function Ic({ n }: { n: keyof typeof ICON_PATHS }) {
+  return (
+    <svg className="sidebar__svg" width="17" height="17" viewBox="0 0 20 20" fill="none"
+      stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {ICON_PATHS[n]}
+    </svg>
+  );
+}
+
 // ─── JWT 本地解碼（不驗簽，只取 payload 供顯示）──────────────────────────────────
 export function decodeJWT(token: string): { sub?: string; email?: string; username?: string; plan?: string } {
   try {
@@ -944,21 +970,21 @@ export default function App() {
           <nav className="sidebar__nav">
             <button className="sidebar__item" onClick={() => setWikiOpen(true)}
               title="知識庫：上傳/本機資料夾/條目（含圖片·影片·Office 文件檢索）">
-              <span>📚 知識庫</span>
+              <Ic n="book" /><span>知識庫</span>
             </button>
             <button className="sidebar__item" onClick={() => setScheduleOpen(true)}
               title="排程：7×24 定時任務（LLM/產 Office/腳本）">
-              <span>🕒 排程</span>
+              <Ic n="clock" /><span>排程</span>
             </button>
             <button className={`sidebar__item ${activeTool === "agent" ? "active" : ""}`}
               onClick={() => startToolSession("agent" as ToolId)}
               title="多智能體協作">
-              <span>🤖 Agents</span>
+              <Ic n="agents" /><span>Agents</span>
             </button>
             <button className={`sidebar__item ${activeTool === "computer" ? "active" : ""}`}
               onClick={() => startToolSession("computer" as ToolId)}
               title="桌面/瀏覽器控制">
-              <span>🖥 桌面控制</span>
+              <Ic n="monitor" /><span>桌面控制</span>
             </button>
           </nav>
 
@@ -968,12 +994,12 @@ export default function App() {
             <button className={`sidebar__item ${["ppt","website","document","table"].includes(activeTool as string) ? "active" : ""}`}
               onClick={() => startToolSession("document" as ToolId)}
               title="文件／簡報／網站／表格（可下載 Word·PPT·Excel）">
-              <span>📄 文件 / 簡報 / 表格</span>
+              <Ic n="doc" /><span>文件 / 簡報 / 表格</span>
             </button>
             <button className={`sidebar__item ${activeTool === "code" ? "active" : ""}`}
               onClick={() => startToolSession("code" as ToolId)}
               title="程式碼產生">
-              <span>{"</> 程式"}</span>
+              <Ic n="code" /><span>程式</span>
             </button>
           </nav>
 
@@ -983,7 +1009,7 @@ export default function App() {
             <button className={`sidebar__item ${activeTool === "file" ? "active" : ""}`}
               onClick={() => startToolSession("file" as ToolId)}
               title="上傳檔案">
-              <span>📎 檔案上傳</span>
+              <Ic n="upload" /><span>檔案上傳</span>
             </button>
           </nav>
 

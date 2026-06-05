@@ -1288,3 +1288,6 @@ body {
   color: var(--text3); text-transform: uppercase;
   padding: 10px 12px 4px; user-select: none;
 }
+
+.sidebar__svg { flex-shrink: 0; width: 17px; height: 17px; opacity: .8; }
+.sidebar__item.active .sidebar__svg { opacity: 1; }
