@@ -544,6 +544,9 @@ export const scheduler = {
 export const agents = {
   approve: (approvalId: string, approved: boolean) =>
     req<{ data: { matched: boolean } }>("/agents/approve", { method: "POST", body: JSON.stringify({ approval_id: approvalId, approved }) }),
+  // 桌面/瀏覽器代理動作前批准
+  approveComputer: (approvalId: string, approved: boolean) =>
+    req<{ ok: boolean }>("/computer/approve", { method: "POST", body: JSON.stringify({ approval_id: approvalId, approved }) }),
 };
 
 export const API_BASE = BASE;

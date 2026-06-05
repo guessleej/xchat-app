@@ -601,6 +601,15 @@ export default function App() {
           const desc = act?.description || act?.action || "執行操作";
           setTaskStatus(desc);
           bufAppend(`\n**步驟 ${e.step}**：${desc}`);
+        } else if (e.type === "approval_request") {
+          // 動作前批准：瀏覽器/桌面代理要執行操作前先問
+          const approvalId = e.approval_id as string;
+          const desc = (e.desc as string) || (e.act as string) || "操作";
+          setTaskStatus("等待批准操作…");
+          uiConfirm(`⚠️ 桌面代理要執行操作，是否批准？\n\n${desc}`)
+            .then((ok) => agents.approveComputer(approvalId, ok).catch(() => {}));
+        } else if (e.type === "approval_resolved") {
+          if (!e.approved) bufAppend(`\n> ⛔ 已拒絕一個操作\n`);
         } else if (e.type === "warning") bufAppend(`\n> 警告：${e.message}`);
         else if (e.type === "error") {
           bufAppend(`\n> 錯誤：${e.message}`);
