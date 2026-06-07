@@ -94,6 +94,48 @@ export async function toFile(sf: ScannedFile): Promise<File> {
   return new File([ab], sf.name, { type: sf.mime });
 }
 
+const DATA_DIR_NAME = "xchatdata";
+
+/** 取得各 OS「文件」資料夾下的 xchatdata 路徑，不存在則自動建立。
+ *  Mac: ~/Documents/xchatdata｜Windows: ...\Documents\xchatdata｜Ubuntu: ~/Documents(或XDG)/xchatdata */
+export async function defaultDataDir(): Promise<string> {
+  const { documentDir } = await import("@tauri-apps/api/path");
+  const { mkdir, exists } = await import("@tauri-apps/plugin-fs");
+  const docs = await documentDir();
+  const sep = docs.includes("\\") ? "\\" : "/";
+  const dir = (docs.endsWith(sep) ? docs : docs + sep) + DATA_DIR_NAME;
+  if (!(await exists(dir))) await mkdir(dir, { recursive: true });
+  return dir;
+}
+
+/** 把 File 內容存進 xchatdata（檔名衝突自動加序號），回傳落地後的絕對路徑。 */
+export async function saveToDataDir(file: File): Promise<string> {
+  const { writeFile, exists } = await import("@tauri-apps/plugin-fs");
+  const dir = await defaultDataDir();
+  const sep = dir.includes("\\") ? "\\" : "/";
+  const dot = file.name.lastIndexOf(".");
+  const stem = dot > 0 ? file.name.slice(0, dot) : file.name;
+  const ext = dot > 0 ? file.name.slice(dot) : "";
+  let name = file.name;
+  let i = 1;
+  while (await exists(dir + sep + name)) { name = `${stem} (${i})${ext}`; i++; }
+  const path = dir + sep + name;
+  await writeFile(path, new Uint8Array(await file.arrayBuffer()));
+  return path;
+}
+
+/** Local-first 上傳：原始檔落地 xchatdata → 本機索引（OCR/embedding 進 pgvector，伺服器不存原檔）。
+ *  回傳格式對齊 files.upload，呼叫端可直接替換。 */
+export async function ingestLocalFirst(
+  file: File,
+  localApi: { ingest: (f: File, p: string, h: string) => Promise<{ data: { file_name: string; extracted_text?: string; local_path: string; chunks: number } }> },
+): Promise<{ data: { file_name: string; extracted_text: string; local_path: string } }> {
+  const path = await saveToDataDir(file);
+  const hash = await sha256Hex(new Uint8Array(await file.arrayBuffer()));
+  const res = await localApi.ingest(file, path, hash);
+  return { data: { file_name: res.data.file_name, extracted_text: res.data.extracted_text ?? "", local_path: res.data.local_path } };
+}
+
 /** 用系統預設程式開啟本機原檔。 */
 export async function openLocalPath(path: string): Promise<void> {
   const { open } = await import("@tauri-apps/plugin-shell");

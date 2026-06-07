@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { local, type LocalDoc } from "../api";
 import { uiAlert, uiConfirm } from "./Dialog";
-import { pickFolder, scanFolder, toFile, sha256Hex, readBytes, openLocalPath, isTauri } from "../lib/local-kb";
+import { pickFolder, scanFolder, toFile, sha256Hex, readBytes, openLocalPath, isTauri, defaultDataDir } from "../lib/local-kb";
 
 interface Props { onClose: () => void }
 
@@ -31,6 +31,14 @@ export default function LocalKBPanel({ onClose }: Props) {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // 首次無指定資料夾 → 預設為各 OS 文件夾下的 xchatdata（自動建立）
+  useEffect(() => {
+    if (folder || !isTauri()) return;
+    defaultDataDir()
+      .then((dir) => { setFolder(dir); localStorage.setItem(FOLDER_KEY, dir); })
+      .catch((e) => setError("建立預設資料夾失敗：" + String(e)));
+  }, [folder]);
 
   const onPick = async () => {
     try {

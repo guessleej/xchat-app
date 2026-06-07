@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import {
   streamChat, streamResearch, streamAgent, streamComputer, streamDynamicAgent,
-  tools, files, auth, downloadFile, scheduler, agents, type SSECallback,
+  tools, files, local, auth, downloadFile, scheduler, agents, type SSECallback,
 } from "./api";
+import { isTauri, ingestLocalFirst } from "./lib/local-kb";
 import { useChatStore } from "./store/chatStore";
 import { useUIStore } from "./store/uiStore";
 import { db } from "./store/db";
@@ -424,12 +425,17 @@ export default function App() {
     resetTransientUI();
   };
 
+  // 統一上傳：桌面版(Tauri)→原始檔落地 <文件>/xchatdata + 本機索引(向量進伺服器，原檔不上傳)；
+  // 網頁版→走伺服器上傳。回傳格式一致 { data: { file_name, extracted_text, ... } }。
+  const uploadOrIngest = (file: File): Promise<{ data: { file_name: string; extracted_text: string; file_id?: string; local_path?: string } }> =>
+    isTauri() ? ingestLocalFirst(file, local) : files.upload(file);
+
   // ── 檔案上傳 ────────────────────────────────────────────────────────────────
   const uploadFile = async (file: File) => {
     setLoading(true);
     addUserMessage(`上傳檔案：${file.name}`);
     try {
-      const { data } = await files.upload(file);
+      const { data } = await uploadOrIngest(file);
       const aiId = addAssistantMessage();
       appendContent(aiId, `已解析 **${data.file_name}**\n\n**內容預覽：**\n\`\`\`\n${data.extracted_text}\n\`\`\``);
       await finishMessage(aiId);
@@ -510,8 +516,8 @@ export default function App() {
       const withTimeout = <T,>(p: Promise<T>, ms = 60000) =>
         Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("上傳逾時")), ms))]);
       const uploadOne = async (fa: typeof pendingFiles[number]) => {
-        try { return await withTimeout(files.upload(fa.file)); }
-        catch { return await withTimeout(files.upload(fa.file)); } // 重試一次
+        try { return await withTimeout(uploadOrIngest(fa.file)); }
+        catch { return await withTimeout(uploadOrIngest(fa.file)); } // 重試一次
       };
       const results = await Promise.allSettled(pendingFiles.map(uploadOne));
       const failed: typeof pendingFiles = [];

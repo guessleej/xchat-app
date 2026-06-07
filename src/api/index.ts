@@ -489,7 +489,7 @@ export const local = {
   // 上傳檔案內容做 OCR+embedding；原始位元組過手即丟，只存向量並標記 local_path
   ingest: async (file: File, localPath: string, fileHash: string) => {
     const { body, contentType } = await buildMultipart(file, { local_path: localPath, file_hash: fileHash });
-    return req<{ data: { local_path: string; file_name: string; chunks: number; file_hash: string }; message?: string }>(
+    return req<{ data: { local_path: string; file_name: string; chunks: number; file_hash: string; extracted_text?: string }; message?: string }>(
       "/files/local/ingest", { method: "POST", body: body as unknown as BodyInit, headers: { "Content-Type": contentType } }
     );
   },

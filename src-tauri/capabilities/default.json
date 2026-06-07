@@ -23,6 +23,9 @@
     "fs:allow-read-text-file",
     "fs:allow-read-dir",
     "fs:allow-stat",
+    "fs:allow-write-file",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
     {
       "identifier": "fs:scope",
       "allow": [
