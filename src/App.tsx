@@ -209,7 +209,7 @@ export default function App() {
   const [input, setInput]           = useState("");
   const [thinkingMode, setThinkingMode] = useState(false);
   const [imageAttachments, setImageAttachments] = useState<string[]>([]);
-  // 檔案附件（PDF/DOCX/etc）— Claude 風格：先 chip 預覽，按送出才一起上傳
+  // 檔案附件（PDF/DOCX/etc）— chip 風格：先 chip 預覽，按送出才一起上傳
   type FileAttachment = { name: string; size: number; file: File; uploading?: boolean; error?: string };
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>([]);
   const [showSettings, setShowSettings] = useState(false);
@@ -242,7 +242,10 @@ export default function App() {
     });
   };
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // 手機 / 窄螢幕預設收合側欄（桌面維持展開）
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => (typeof window === "undefined" ? true : window.innerWidth > 768)
+  );
   const [historySearch, setHistorySearch] = useState("");
   const [wikiOpen, setWikiOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -273,6 +276,31 @@ export default function App() {
     const handler = () => { auth.logout(); setIsLoggedIn(false); };
     window.addEventListener("xchat:logout", handler);
     return () => window.removeEventListener("xchat:logout", handler);
+  }, []);
+
+  // 防止 iOS 鍵盤聚焦時，整頁 / 訊息捲動容器被系統設定 scrollLeft 而水平位移（左緣被裁）。
+  // 純 CSS overflow-x:hidden 擋不住程式性 scrollLeft，故用 JS 強制歸零。
+  useEffect(() => {
+    const pinX = () => {
+      const se = (document.scrollingElement || document.documentElement) as HTMLElement;
+      if (se && se.scrollLeft !== 0) se.scrollLeft = 0;
+      if (window.scrollX !== 0) window.scrollTo(0, window.scrollY);
+      document
+        .querySelectorAll<HTMLElement>(".messages-wrap, .messages-wrap > div, .main")
+        .forEach((el) => { if (el.scrollLeft !== 0) el.scrollLeft = 0; });
+    };
+    window.addEventListener("focusin", pinX);
+    window.addEventListener("resize", pinX);
+    window.visualViewport?.addEventListener("resize", pinX);
+    window.visualViewport?.addEventListener("scroll", pinX);
+    const id = window.setInterval(pinX, 250); // backstop：確保任何來源造成的橫移都被歸零
+    return () => {
+      window.removeEventListener("focusin", pinX);
+      window.removeEventListener("resize", pinX);
+      window.visualViewport?.removeEventListener("resize", pinX);
+      window.visualViewport?.removeEventListener("scroll", pinX);
+      window.clearInterval(id);
+    };
   }, []);
 
   // 排程任務未讀結果輪詢 → 推播通知（每 90 秒；登入後才跑）
@@ -380,11 +408,11 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // 虛擬滾動自動捲到底
+  // 虛擬滾動自動捲到底：送出時(length 變)＋串流時(最後一則 content 變)都跟隨，instant+對齊底部最可靠
   useEffect(() => {
     if (!showScrollBtn && messages.length > 0)
-      virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: "smooth" });
-  }, [messages.length]);
+      virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: "auto", align: "end" });
+  }, [messages.length, messages[messages.length - 1]?.content, showScrollBtn]);
 
   // 更新視窗標題（Electron 專屬）
   useEffect(() => {
@@ -545,6 +573,12 @@ export default function App() {
     const userMsgId = addUserMessage(text || pendingFiles.map(f => `📎 ${f.name}`).join(", "), imgs.length > 0 ? imgs : undefined);
     pendingUserMsgRef.current = { convId, messageId: userMsgId };
     const aiId = addAssistantMessage();
+    // 送出是明確動作：無條件捲到底，讓自己的訊息立刻可見（不受 showScrollBtn 守門）
+    setShowScrollBtn(false);
+    requestAnimationFrame(() => {
+      const n = useChatStore.getState().messages.length;
+      virtuosoRef.current?.scrollToIndex({ index: n - 1, behavior: "auto", align: "end" });
+    });
     abortRef.current = new AbortController();
 
     // 立刻把對話固定到側邊欄、placeholder 寫到 DB（讓任何切換都不會弄丟）

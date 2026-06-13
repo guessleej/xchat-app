@@ -10,6 +10,7 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "release:mac": "bash scripts/release-mac.sh",
     "tauri:ios:init": "tauri ios init",
     "tauri:ios:dev": "tauri ios dev",
     "tauri:ios:build": "tauri ios build",
